@@ -1,0 +1,1 @@
+{"lanes":{},"backfill":{"NFL":"2026-10-18"},"runs":1,"lastRun":"2026-10-20T18:55:00Z","version":"edgebot-v2.0","lastSummary":{"games":27,"finalsLearned":3,"graded":0,"newPicks":0,"sports":["NFL","NBA","NHL"]},"blend":{"NFL":{"weight":0,"n":0,"teams":6,"finals":3},"NBA":{"weight":0,"n":0,"teams":18,"finals":0},"NHL":{"weight":0,"n":0,"teams":0,"finals":0}}}

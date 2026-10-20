@@ -1,0 +1,32 @@
+name: EdgeBot update
+on:
+  schedule:
+    - cron: "17 * * * *"   # hourly
+  workflow_dispatch: {}
+permissions:
+  contents: write
+concurrency:
+  group: edgebot-update
+  cancel-in-progress: false
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Load saved state (data branch)
+        run: |
+          git fetch --depth 1 origin data && git --work-tree=data checkout origin/data -- . || echo "No data branch yet — starting from the seed in data/."
+      - name: Fetch games, learn, pick, grade
+        run: node scripts/update.mjs
+      - name: Save state (single commit, overwritten each run so history stays small)
+        run: |
+          cd data
+          git init -q -b data
+          git config user.name "edgebot-bot"
+          git config user.email "edgebot-bot@users.noreply.github.com"
+          git add -A && git commit -qm "EdgeBot data $(date -u +%Y-%m-%dT%H:%MZ)"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" data:data
