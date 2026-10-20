@@ -15,17 +15,22 @@ const etDate = (ms) => new Intl.DateTimeFormat("en-CA", { timeZone: "America/New
 const ymd = (d) => d.replaceAll("-", "");
 const addDays = (d, n) => { const t = new Date(d + "T12:00:00Z"); t.setUTCDate(t.getUTCDate() + n); return t.toISOString().slice(0, 10); };
 
-let requests = 0; const failures = [];
+let requests = 0, failed = 0; const failures = [];
+const UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1";
 async function getJson(url) {
-  for (let attempt = 0; attempt < 3; attempt++) {
+  requests++;
+  const hosts = [url, url.replace("https://site.api.espn.com/", "https://site.web.api.espn.com/")];
+  let last = "";
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const u = hosts[attempt % 2];
     try {
-      requests++;
-      const r = await fetch(url, { headers: { "User-Agent": "EdgeBot/2 (personal research)" }, signal: AbortSignal.timeout(15000) });
+      const r = await fetch(u, { headers: { "User-Agent": UA, Accept: "application/json", Referer: "https://www.espn.com/" }, signal: AbortSignal.timeout(15000) });
       if (r.status === 404) return null;
       if (!r.ok) throw new Error("HTTP " + r.status);
       return await r.json();
-    } catch (e) { if (attempt === 2) { failures.push(`${url.split("/sports/")[1]}: ${e.message}`); return null; } await new Promise((s) => setTimeout(s, 800 * (attempt + 1))); }
+    } catch (e) { last = e.message; await new Promise((s) => setTimeout(s, 700 * (attempt + 1))); }
   }
+  failed++; failures.push(`${url.split("/sports/")[1]}: ${last}`); return null;
 }
 const num = (x) => { if (x === null || x === undefined || x === "") return null; const v = typeof x === "string" ? parseFloat(x.replace(/^EVEN$/i, "100")) : +x; return isFinite(v) ? v : null; };
 /** One ESPN event -> engine game (or null). */
@@ -62,7 +67,7 @@ export function parseEvent(sport, ev) {
   return g;
 }
 async function scoreboard(sport, date) {
-  const q = new URLSearchParams({ limit: "300" }); if (date) q.set("dates", ymd(date)); if (sport === "NCAAF") q.set("groups", "80");
+  const q = new URLSearchParams(); if (date) q.set("dates", ymd(date)); if (sport === "NCAAF") q.set("groups", "80");
   const d = await getJson(`https://site.api.espn.com/apis/site/v2/sports/${PATHS[sport]}/scoreboard?${q}`);
   return (d?.events || []).map((ev) => parseEvent(sport, ev)).filter(Boolean);
 }
@@ -79,8 +84,8 @@ async function main() {
     while (k < (s === "NFL" || s === "NCAAF" || s === "EPL" ? 7 : 4) && d >= SEASON_START[s]) { jobs.push([s, d, true]); fetched[s] = d; d = addDays(d, -1); k++; }
   }
   const games = new Map();
-  for (let i = 0; i < jobs.length; i += 6) {
-    const chunk = await Promise.all(jobs.slice(i, i + 6).map(([s, d]) => scoreboard(s, d)));
+  for (let i = 0; i < jobs.length; i += 4) {
+    const chunk = await Promise.all(jobs.slice(i, i + 4).map(([s, d]) => scoreboard(s, d)));
     for (const list of chunk) for (const g of list) { const prev = games.get(g.id); if (!prev || g.status === "post" || (prev.status !== "post" && g.spread != null)) games.set(g.id, g); }
   }
   const ratings = {}; for (const s of Object.keys(E.SPORTS)) { const r = readJson(`ratings/${s}.json`, null); if (r) ratings[s] = r; }
@@ -92,13 +97,13 @@ async function main() {
   for (const r of ledger) if (r.status === "open" && Date.parse(r.start) < NOW - 4 * 864e5) Object.assign(r, { status: "void", note: "No verified final found." });
   ledger.push(...out.newPicks);
   const runs = readJson("runs.json", []);
-  const log = [...out.log, `${requests} ESPN requests${failures.length ? `, ${failures.length} failed` : ""}.`];
+  const log = [...out.log, `${requests} ESPN requests${failed ? `, ${failed} failed` : ""}.`];
   runs.unshift({ at: now.toISOString(), summary: out.model.lastSummary, log, failures: failures.slice(0, 5) }); runs.length = Math.min(runs.length, 60);
   for (const s of out.touched) writeJson(`ratings/${s}.json`, out.ratings[s]);
   writeJson("state/model.json", out.model); writeJson("state/fetched.json", fetched); writeJson("ledger.json", ledger); writeJson("runs.json", runs);
   writeJson("app.json", { at: now.toISOString(), slate: { at: now.toISOString(), games: out.slate }, model: out.model,
     ledger: [...ledger].sort((a, b) => (b.savedAt || "").localeCompare(a.savedAt || "")).slice(0, 800), runs: runs.slice(0, 15) });
   console.log(log.join("\n")); if (failures.length) console.log("Failures:\n" + failures.slice(0, 10).join("\n"));
-  if (requests && failures.length === requests) process.exit(1); // every request failed: mark the run red
+  if (requests && failed === requests) process.exit(1); // every request failed: mark the run red
 }
 if (process.argv[1] && import.meta.url.endsWith(path.basename(process.argv[1]))) main();
