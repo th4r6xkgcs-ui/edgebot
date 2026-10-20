@@ -10,6 +10,6 @@ const tries = [
   ["mlb official", "https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=2026-10-20", { "User-Agent": UA }],
 ];
 for (const [name, url, headers] of tries) {
-  try { const r = await fetch(url, { headers, signal: AbortSignal.timeout(15000) }); const t = await r.text(); console.log(`${name}: ${r.status} ${t.length}b ${t.slice(0, 80).replace(/\s+/g, " ")}`); }
-  catch (e) { console.log(`${name}: ERR ${e.message}`); }
+  try { const r = await fetch(url, { headers, signal: AbortSignal.timeout(15000) }); const t = await r.text(); console.log(`::notice::${name}: ${r.status} ${t.length}b ${t.slice(0, 80).replace(/\s+/g, " ")}`); }
+  catch (e) { console.log(`::notice::${name}: ERR ${e.message}`); }
 }
