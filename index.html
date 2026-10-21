@@ -135,7 +135,7 @@ h2.sec small{letter-spacing:0;text-transform:none;font-weight:500;font-size:12px
 .note{font-size:13px;color:var(--muted);padding:2px 4px;margin:6px 0}
 
 /* tab bar */
-nav.tabs{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(10px + env(safe-area-inset-bottom,0px));z-index:20;display:grid;grid-template-columns:repeat(4,1fr);width:min(440px,calc(100% - 24px));background:rgba(17,26,47,.82);backdrop-filter:blur(18px) saturate(1.4);-webkit-backdrop-filter:blur(18px) saturate(1.4);border:1px solid var(--line2);border-radius:22px;padding:5px;box-shadow:0 12px 40px rgba(0,0,0,.45)}
+nav.tabs{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(10px + env(safe-area-inset-bottom,0px));z-index:20;display:grid;grid-template-columns:repeat(5,1fr);width:min(480px,calc(100% - 20px));background:rgba(17,26,47,.82);backdrop-filter:blur(18px) saturate(1.4);-webkit-backdrop-filter:blur(18px) saturate(1.4);border:1px solid var(--line2);border-radius:22px;padding:5px;box-shadow:0 12px 40px rgba(0,0,0,.45)}
 nav.tabs button{border:0;background:transparent;display:flex;flex-direction:column;align-items:center;gap:2px;min-height:52px;font-size:11px;font-weight:600;color:var(--muted);border-radius:16px}
 nav.tabs button[aria-current="page"]{color:var(--bg);background:var(--amber)}
 nav.tabs svg{width:22px;height:22px}
@@ -249,6 +249,24 @@ table.lanes th.n{text-align:right}
 .src .bar2{display:flex;height:9px;border-radius:5px;overflow:hidden;background:var(--panel2)}
 .src .bar2 i{display:block}
 .src span:last-child{text-align:right;font:600 12px var(--mono);color:var(--muted)}
+.pp{display:grid;grid-template-columns:52px minmax(0,1fr) auto;gap:12px;align-items:center;padding:14px 16px 10px 18px}
+.pp img.head{width:52px;height:52px;border-radius:50%;object-fit:cover;background:var(--panel2);border:1px solid var(--line)}
+.pp .who{min-width:0}
+.pp .who b{display:block;font-size:15.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pp .who small{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:12.5px}
+.pp .who small .tlogo,.pp .who small .tmono{width:18px;height:18px;font-size:7px}
+.call{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;padding:0 16px 0 18px}
+.call b{font-family:var(--display);font-size:26px;font-weight:800;letter-spacing:-.015em}
+.call .hi{color:var(--mint)}.call .lo{color:#7FB8FF}
+.call span{font-size:15px;color:#C9D1E4}
+.plain{margin:6px 16px 0 18px;font-size:14px;color:#C9D1E4}
+.plain b{color:var(--fg)}
+.lastg{display:flex;align-items:flex-end;gap:4px;height:46px;margin:10px 16px 12px 18px;position:relative}
+.lastg i{flex:1;border-radius:3px 3px 0 0;background:#2C3B5E;min-height:3px;position:relative}
+.lastg i.over{background:rgba(69,224,174,.75)}
+.lastg .ln{position:absolute;left:0;right:0;border-top:1.5px dashed rgba(238,241,248,.7)}
+.lastg small{position:absolute;right:0;top:-16px;font:600 10.5px var(--mono);color:var(--muted)}
+.search{width:100%;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px 14px;color:var(--fg);font:500 16px var(--body);margin-bottom:10px}
 details.how{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-md);padding:2px 14px;margin-bottom:10px}
 details.how summary{cursor:pointer;padding:12px 0;font-weight:700;list-style:none;display:flex;justify-content:space-between}
 details.how summary::after{content:"+";color:var(--muted);font-weight:500}
@@ -274,6 +292,7 @@ details.how ol{padding-left:18px;margin:0 0 12px}
 <nav class="tabs" aria-label="Main">
   <button data-tab="picks" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17l5-5 4 3 7-8"/><circle cx="20" cy="7" r="1.6" fill="currentColor"/></svg>Picks</button>
   <button data-tab="games"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M12 5v14M3 12h4M17 12h4"/></svg>Games</button>
+  <button data-tab="players"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5"/></svg>Players</button>
   <button data-tab="record"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 19V11M12 19V5M18 19v-6"/></svg>Record</button>
   <button data-tab="hq"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/></svg>HQ</button>
 </nav>
@@ -336,7 +355,7 @@ async function connect() {
       if (!r.ok) r = await fetch("data/app.json?t=" + Date.now(), { cache: "no-store" });
       if (!r.ok) throw new Error("The first update hasn’t finished yet. Check back in a few minutes.");
       const d = await r.json();
-      state.slate = d.slate; state.model = d.model; state.ledger = d.ledger || []; state.runs = d.runs || []; state.teams = d.teams || {}; state.error = "";
+      state.players = d.players || null; state.slate = d.slate; state.model = d.model; state.ledger = d.ledger || []; state.runs = d.runs || []; state.teams = d.teams || {}; state.error = "";
       simCache.clear(); indexTeams(); render(); if (hq.ready) hq.update();
     } catch (e) { state.error = navigator.onLine === false ? "You’re offline — showing the last loaded picks." : e.message; if (!state.slate) render(); }
   };
@@ -591,6 +610,7 @@ function viewRecord() {
         <div class="kpi"><b class="num ${!g.length ? "" : R.units >= 0 ? "good" : "bad"}">${g.length ? sgn(100 * R.units / g.length) + "%" : "—"}</b><span>ROI per pick</span></div>
         <div class="kpi"><b class="num">${open}</b><span>open${voids ? ` · ${voids} void` : ""}</span></div></div>
       ${spark(graded)}</section>
+    ${state.players?.record && (state.players.record.w + state.players.record.l) ? `<h2 class="sec"><span>Player picks</span></h2><div class="card" style="padding:14px 16px"><b style="font-family:var(--display);font-size:24px">${state.players.record.w}–${state.players.record.l}</b> <span class="note">${Math.round(100 * state.players.record.w / (state.players.record.w + state.players.record.l))}% · 2-pick entries need 58%, 3-pick 55%</span></div>` : ""}
     <h2 class="sec"><span>Beat the closing line?</span><small>${withClv.length} checked</small></h2>
     <div class="card" style="padding:14px 16px">${withClv.length ? `<div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px"><b style="font-family:var(--display);font-size:26px" class="${beat / withClv.length >= 0.5 ? "good" : "bad"}">${Math.round(100 * beat / withClv.length)}%</b><span class="note" style="margin:0">${beat} of ${withClv.length} picks got a better number than the close${avgPts != null ? ` · avg ${sgn(avgPts, 2)} pts` : ""}${avgProb != null ? ` · avg ${sgn(avgProb * 100, 1)}% on prices` : ""}</span></div><div class="meter"><i style="width:${(100 * beat / withClv.length).toFixed(0)}%"></i></div>` : ""}
       <p class="note" style="margin:${withClv.length ? "10px" : "0"} 0 0;padding:0">The quickest honest test of an edge: if lines keep moving toward EdgeBot’s picks before kickoff, the picks are likely sharp — long before wins and losses settle it.</p></div>
@@ -638,6 +658,41 @@ function viewHQ() {
     <div class="agents">${agents.map(([n, c, t]) => `<div class="agent"><b><i style="background:${c};color:${c}"></i>${n}</b><p>${esc(t)}</p></div>`).join("")}</div>
     <h2 class="sec"><span>Activity</span><small>${m?.runs ?? 0} runs</small></h2>
     <div class="card"><ul class="feed">${state.runs.map((r) => `<li><time>${esc(new Date(r.at).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }))}</time>${esc((r.log || []).join(" "))}</li>`).join("") || `<li>No runs recorded yet.</li>`}</ul></div>`;
+}
+/* ------------------------------ players ------------------------------ */
+const statShort = (x) => x.label;
+function playerCard(x) {
+  const g = games().find((y) => y.id === x.gameId), hi = x.side === "higher", maxv = Math.max(x.line * 1.6, ...x.last, 1);
+  const team = teamIndex.get(`${x.sport}|${x.team}`) || { abbr: x.team }, opp = teamIndex.get(`${x.sport}|${x.opp}`) || { abbr: x.opp };
+  const hitsLast = x.last.filter((v) => (hi ? v > x.line : v < x.line)).length;
+  return `<article class="card pick" style="--tc:${hi ? "#45E0AE" : "#7FB8FF"}">
+    <div class="pp"><img class="head" src="${esc(x.head)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">
+      <div class="who"><b>${esc(x.name)}</b><small>${mark(team, x.sport)} ${esc(x.team)} ${x.home ? "vs" : "@"} ${esc(x.opp)} · ${esc(when(x.start))}${x.status ? ` · <span class="bad">${esc(x.status === "QUESTIONABLE" ? "Questionable" : "Day-to-day")}</span>` : ""}</small></div>
+      ${x.tier ? tierPill(x.tier) : ""}</div>
+    <div class="call"><b class="${hi ? "hi" : "lo"}">${hi ? "▲ Higher" : "▼ Lower"}</b><span>${x.line} ${esc(statShort(x))}</span></div>
+    <p class="plain">EdgeBot expects <b>${x.proj.toFixed(1)}</b> and thinks ${hi ? "higher" : "lower"} hits <b class="good">${pct(x.p)}</b> of the time. Went ${hi ? "over" : "under"} in <b>${hitsLast} of his last ${x.last.length}</b>.</p>
+    <div class="lastg" aria-label="Last ${x.last.length} games">${x.last.map((v) => `<i class="${v > x.line ? "over" : ""}" style="height:${Math.max(4, (v / maxv) * 100).toFixed(0)}%" title="${v}"></i>`).join("")}<span class="ln" style="bottom:${((x.line / maxv) * 100).toFixed(0)}%"></span><small>line ${x.line}</small></div>
+  </article>`;
+}
+function viewPlayers() {
+  const P = state.players; if (!P) return loadingOrError();
+  const mode = state.pmode || "picks", q = (state.pq || "").toLowerCase();
+  let list = P.props.filter((x) => Date.parse(x.start) > Date.now());
+  const sports = list.map((x) => x.sport);
+  if (state.psport && state.psport !== "ALL") list = list.filter((x) => x.sport === state.psport);
+  const picks = list.filter((x) => x.tier), rec = P.record || { w: 0, l: 0 };
+  if (mode === "picks") list = picks;
+  if (q) list = list.filter((x) => x.name.toLowerCase().includes(q) || x.team.toLowerCase() === q || x.label.toLowerCase().includes(q));
+  return `<section class="hero"><div class="eyebrow">Player picks · pick’em</div>
+      <h2>${picks.length ? `<em>${picks.length}</em> Higher / Lower picks` : "Player picks are loading"}</h2>
+      <div class="kpis"><div class="kpi"><b class="num">${rec.w + rec.l ? `${rec.w}–${rec.l}` : "—"}</b><span>${rec.w + rec.l ? `record · ${Math.round(100 * rec.w / (rec.w + rec.l))}%` : "record starts soon"}</span></div>
+        <div class="kpi"><b class="num">58%</b><span>to win 2-pick (3×)</span></div><div class="kpi"><b class="num">55%</b><span>to win 3-pick (6×)</span></div></div></section>
+    <p class="note">Lines are DraftKings’ player props. Underdog’s are usually within half a point — <b>check the line in the app</b>; if it’s moved past EdgeBot’s number, skip it.</p>
+    <div class="seg" role="group" aria-label="Players view"><button data-pmode="picks" aria-pressed="${mode === "picks"}">Picks<b>${picks.length}</b></button><button data-pmode="all" aria-pressed="${mode === "all"}">All lines<b>${P.props.length}</b></button></div>
+    <div class="chips" role="group" aria-label="Sport">${["ALL", ...Object.keys(SP).filter((s) => sports.includes(s))].map((s) => `<button class="chip" data-psport="${s}" aria-pressed="${(state.psport || "ALL") === s}">${s === "ALL" ? "All" : sportLabel(s)}${s !== "ALL" ? `<b>${sports.filter((x) => x === s).length}</b>` : ""}</button>`).join("")}</div>
+    ${mode === "all" ? `<input class="search" id="psearch" type="search" placeholder="Search a player, team or stat" value="${esc(state.pq || "")}" autocomplete="off">` : ""}
+    ${list.length ? list.slice(0, 120).map(playerCard).join("") : `<div class="card empty"><strong>${mode === "picks" ? "No player picks right now" : "No lines match"}</strong>${mode === "picks" ? "Picks appear when EdgeBot’s projection beats the line by enough to matter. NBA picks grow as last season’s box scores finish loading." : "Try another name."}</div>`}
+    <p class="note">How it works: each player’s recent games (this season weighted most), minutes and the opponent’s defence give a projection; it’s blended with the line, since the line knows about roles and injuries. A pick needs 57%+. Picks are saved before the game and graded from the box score.</p>`;
 }
 function loadingOrError() {
   if (state.error) return `<div class="card empty"><strong>Can’t load right now</strong>${esc(state.error)}</div>`;
@@ -730,7 +785,8 @@ function openGame(id) {
     <div class="actions">${g.pick ? `<button class="btn ${state.saved.includes(`${g.id}~${g.pick.market}~${g.pick.side}`) ? "" : "primary"}" data-save="${esc(`${g.id}~${g.pick.market}~${g.pick.side}`)}" data-keep="1">${state.saved.includes(`${g.id}~${g.pick.market}~${g.pick.side}`) ? "★ Saved" : "☆ Save pick"}</button>` : ""}<button class="btn" data-share="${esc(g.id)}">↗ Share</button></div>
     ${crowdBlock(g)}
     ${lineChart(g)}
-    <h2 class="sec"><span>Why</span></h2><ul class="why">${(g.why || []).filter((x) => !/injuries:/.test(x)).map((x) => `<li>${esc(x)}</li>`).join("")}</ul>
+    <h2 class="sec"><span>Why</span></h2><ul class="why">${(g.why || []).filter((x) => !/injuries:|^Blend:|% vs \d+% priced in/.test(x)).map((x) => `<li>${esc(x)}</li>`).join("")}</ul>
+    ${(g.why || []).filter((x) => /^Blend:/.test(x)).map((x) => `<p class="note" style="color:var(--dim)">${esc(x)}</p>`).join("")}
     ${injuryBlock(g)}
     ${p && !fin ? `<h2 class="sec"><span>Check your own line</span></h2>
       <div class="check"><label for="ck-spread">${esc(g.home.abbr)} spread<input id="ck-spread" inputmode="decimal" value="${g.spread ?? ""}" placeholder="-3.5"></label>
@@ -763,7 +819,7 @@ function render() {
   $("#dot").className = "dot " + (fresh ? "ok" : m ? "warn" : "");
   $("#status").textContent = m ? `Updated ${ago(m.lastRun)}` : state.slate ? "Waiting for first run" : "Connecting…";
   $("#today").textContent = m ? `${(Object.values(m.archive || {}).reduce((a, b) => a + b, 0)).toLocaleString()} finals learned` : "Sports picks that learn";
-  const views = { picks: viewPicks, games: viewGames, record: viewRecord, hq: viewHQ };
+  const views = { picks: viewPicks, games: viewGames, players: viewPlayers, record: viewRecord, hq: viewHQ };
   const hadCanvas = $("#hq-canvas");
   if (state.tab === "hq" && hadCanvas && hq.ready) {
     const tmp = document.createElement("div"); tmp.innerHTML = viewHQ(); tmp.querySelector("#hq-canvas").replaceWith(hadCanvas);
@@ -778,6 +834,8 @@ document.addEventListener("click", (e) => {
   if (t.dataset.sport || t.dataset.sport2) { state.sport = t.dataset.sport || t.dataset.sport2; render(); return; }
   if (t.dataset.day) { state.day = t.dataset.day; render(); return; }
   if (t.dataset.when) { state.when = t.dataset.when; render(); return; }
+  if (t.dataset.pmode) { state.pmode = t.dataset.pmode; render(); return; }
+  if (t.dataset.psport) { state.psport = t.dataset.psport; render(); return; }
   if (t.dataset.save) { const id = t.dataset.save; state.saved = state.saved.includes(id) ? state.saved.filter((x) => x !== id) : [...state.saved, id]; saveSaved(); render();
     if (t.dataset.keep) { const on = state.saved.includes(id); t.textContent = on ? "★ Saved" : "☆ Save pick"; t.classList.toggle("primary", !on); toast(on ? "Saved — find it under ★ Saved" : "Removed from saved"); } return; }
   if (t.dataset.share) { const g = games().find((x) => x.id === t.dataset.share); if (g) sharePick(g); return; }
@@ -786,6 +844,7 @@ document.addEventListener("click", (e) => {
   if (t.dataset.close && (e.target === t || t.classList.contains("close"))) closeSheet();
 });
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeSheet(); });
+document.addEventListener("input", (e) => { if (e.target.id === "psearch") { state.pq = e.target.value; const pos = e.target.selectionStart; render(); const el = $("#psearch"); if (el) { el.focus(); el.setSelectionRange(pos, pos); } } });
 
 /* ------------------------------ 3D HQ ------------------------------ */
 const hq = (() => {
