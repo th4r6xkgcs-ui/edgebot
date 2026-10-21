@@ -82,8 +82,12 @@ export function parseEvent(sport, ev) {
   const state = ev.status?.type?.state ?? c.status?.type?.state, completed = ev.status?.type?.completed ?? c.status?.type?.completed;
   let status = state === "post" ? (completed ? "post" : "unknown") : state === "in" ? "in" : state === "pre" ? "pre" : "unknown";
   if (/postponed|canceled|cancelled|suspended/i.test(ev.status?.type?.name || "")) status = "unknown";
-  const team = (t) => ({ abbr: t.team.abbreviation || t.team.shortDisplayName, name: t.team.displayName || t.team.name, score: status === "pre" ? null : num(t.score) });
+  const rec = (t) => (t.records || []).find((r) => r.type === "total" || r.name === "overall" || r.name === "All Splits")?.summary || t.records?.[0]?.summary || null;
+  const team = (t) => ({ abbr: t.team.abbreviation || t.team.shortDisplayName, name: t.team.displayName || t.team.name, short: t.team.shortDisplayName || t.team.name || null,
+    logo: t.team.logo || t.team.logos?.[0]?.href || null, color: t.team.color || null, alt: t.team.alternateColor || null, record: rec(t), score: status === "pre" ? null : num(t.score) });
   const g = { id: `${sport}:${ev.id}`, sport, start: new Date(ev.date).toISOString(), status, home: team(home), away: team(away),
+    venue: c.venue?.fullName || null, tv: (c.broadcasts || []).flatMap((b) => b.names || []).slice(0, 2).join(", ") || null,
+    detail: ev.status?.type?.shortDetail || null, rank: { home: home.curatedRank?.current < 99 ? home.curatedRank.current : null, away: away.curatedRank?.current < 99 ? away.curatedRank.current : null },
     spread: null, total: null, mlHome: null, mlAway: null, mlDraw: null, source: "ESPN scoreboard" };
   if (status === "post" && (g.home.score == null || g.away.score == null)) g.status = "unknown";
   const o = c.odds?.[0];

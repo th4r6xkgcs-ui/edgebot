@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#0B1020">
+<meta name="theme-color" content="#090D1A">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -14,134 +14,227 @@
 <link rel="icon" href="icons/icon-192.png" type="image/png">
 <title>EdgeBot</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap">
 <style>
-/* Layout: one-column phone app, sticky header, fixed bottom tab bar; HQ tab hosts a 3D ops floor. Dark-first by design (night trading floor). */
-:root{padding-top:env(safe-area-inset-top,0px);
-  --bg:#0B1020; --panel:#121A2E; --panel2:#18223B; --line:#24314F; --fg:#E9EDF7; --muted:#8F9BB7;
-  --amber:#FFB547; --mint:#47DFAE; --coral:#FF6F61; --violet:#8F80FF; --sky:#5CC8FF;
+/* Night broadcast desk: deep ink canvas, team colours as the only loud colour, amber for EdgeBot's own voice. Dark by design. */
+:root{
+  --bg:#090D1A; --bg2:#0D1324; --panel:#111A2F; --panel2:#17213A; --line:#223050; --line2:#2C3B5E;
+  --fg:#EEF1F8; --muted:#8C98B4; --dim:#5E6A86;
+  --amber:#FFB547; --amber2:#FFCF85; --mint:#45E0AE; --coral:#FF6F61; --violet:#8F80FF; --sky:#5CC8FF;
   --display:"Bricolage Grotesque",ui-rounded,system-ui,sans-serif; --body:"Figtree",system-ui,-apple-system,sans-serif; --mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
-  color-scheme:dark;
+  --r-lg:22px; --r-md:16px; --r-sm:12px;
+  color-scheme:dark; padding-top:env(safe-area-inset-top,0px);
 }
 *{box-sizing:border-box}
-html,body{background:var(--bg);color:var(--fg)}
-body{margin:0;font-family:var(--body);font-size:15px;line-height:1.45;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 calc(84px + env(safe-area-inset-bottom,0px));-webkit-font-smoothing:antialiased}
+html{background:var(--bg)}
+body{margin:0;background:radial-gradient(1200px 600px at 85% -10%,rgba(143,128,255,.13),transparent 60%),radial-gradient(900px 500px at -10% 10%,rgba(255,181,71,.08),transparent 60%),var(--bg);background-attachment:fixed;color:var(--fg);font-family:var(--body);font-size:15px;line-height:1.45;-webkit-font-smoothing:antialiased;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 calc(92px + env(safe-area-inset-bottom,0px));min-height:100vh}
 body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
-button{font:inherit;color:inherit;cursor:pointer}
-button:focus-visible,input:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}
+button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
 .num{font-family:var(--mono);font-variant-numeric:tabular-nums}
 .wrap{max-width:720px;margin:0 auto}
-header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:linear-gradient(var(--bg) 70%,transparent);padding-block:14px 10px;display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
-.brand{display:flex;align-items:center;gap:10px;min-width:0}
-.brand h1{font-family:var(--display);font-weight:800;font-size:28px;letter-spacing:-.02em;margin:0;line-height:1}
+h1,h2,h3{text-wrap:balance}
+
+/* header */
+header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:6;padding-block:14px 12px;display:flex;align-items:center;justify-content:space-between;gap:12px;background:linear-gradient(var(--bg) 72%,rgba(9,13,26,0))}
+.brand{display:flex;align-items:center;gap:12px;min-width:0}
+.logo{width:42px;height:42px;flex:none;filter:drop-shadow(0 6px 18px rgba(255,181,71,.25))}
+.brand h1{font-family:var(--display);font-weight:800;font-size:26px;letter-spacing:-.02em;margin:0;line-height:1}
 .brand h1 i{font-style:normal;color:var(--amber)}
-.status{font-size:12.5px;color:var(--muted);display:flex;align-items:center;gap:6px;margin-top:4px}
-.dot{width:8px;height:8px;border-radius:50%;background:var(--muted);flex:none}
-.dot.ok{background:var(--mint);box-shadow:0 0 8px var(--mint)}.dot.warn{background:var(--amber)}
-.logo{width:40px;height:40px;flex:none}
-.pill{display:inline-flex;align-items:center;gap:4px;border-radius:999px;padding:2px 9px;font-size:12px;font-weight:700;letter-spacing:.02em;white-space:nowrap}
-.t-Strong{background:rgba(71,223,174,.16);color:var(--mint)}.t-Value{background:rgba(255,181,71,.16);color:var(--amber)}.t-Lean{background:rgba(143,155,183,.16);color:var(--muted)}
-.chips{display:flex;gap:8px;overflow-x:auto;padding:2px 0 10px;scrollbar-width:none}.chips::-webkit-scrollbar{display:none}
-.chip{border:1px solid var(--line);background:transparent;border-radius:999px;padding:8px 14px;min-height:40px;font-weight:600;font-size:14px;white-space:nowrap;color:var(--muted)}
+.brand small{display:block;color:var(--muted);font-size:12.5px;margin-top:3px;letter-spacing:.01em}
+.live{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);background:rgba(17,26,47,.7);border-radius:999px;padding:6px 11px;font-size:12px;color:var(--muted);white-space:nowrap}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--dim);flex:none}
+.dot.ok{background:var(--mint);box-shadow:0 0 0 3px rgba(69,224,174,.18);animation:pulse 2.4s ease-in-out infinite}
+.dot.warn{background:var(--amber)}
+@keyframes pulse{50%{box-shadow:0 0 0 6px rgba(69,224,174,0)}}
+
+/* hero */
+.hero{position:relative;overflow:hidden;border-radius:var(--r-lg);padding:18px 18px 16px;border:1px solid var(--line);background:linear-gradient(135deg,#16213D 0%,#111A2F 55%,#1B1733 100%)}
+.hero::after{content:"";position:absolute;right:-60px;top:-80px;width:240px;height:240px;border-radius:50%;background:radial-gradient(circle,rgba(255,181,71,.22),transparent 65%);pointer-events:none}
+.hero .eyebrow{font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--amber2);font-weight:700}
+.hero h2{font-family:var(--display);font-weight:800;font-size:28px;line-height:1.08;margin:6px 0 12px;letter-spacing:-.02em}
+.hero h2 em{font-style:normal;color:var(--amber)}
+.kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;position:relative;z-index:1}
+.kpi{min-width:0}
+.kpi b{display:block;font-family:var(--display);font-weight:800;font-size:24px;line-height:1.05}
+.kpi span{font-size:12px;color:var(--muted)}
+.good{color:var(--mint)}.bad{color:var(--coral)}
+
+/* controls */
+.seg{display:flex;gap:4px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:4px;margin:14px 0 10px}
+.seg button{flex:1;border:0;background:transparent;border-radius:10px;padding:9px 6px;min-height:40px;font-weight:600;font-size:14px;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--panel2);color:var(--fg);box-shadow:0 1px 0 rgba(255,255,255,.06) inset,0 4px 14px rgba(0,0,0,.25)}
+.seg button b{font-family:var(--mono);font-weight:500;font-size:12px;margin-left:5px;opacity:.6}
+.chips{display:flex;gap:8px;overflow-x:auto;padding:2px 0 12px;scrollbar-width:none;margin-right:calc(-1 * max(16px,env(safe-area-inset-right,0px)));padding-right:16px}
+.chips::-webkit-scrollbar{display:none}
+.chip{border:1px solid var(--line);background:rgba(17,26,47,.6);border-radius:999px;padding:7px 13px;min-height:38px;font-weight:600;font-size:13.5px;white-space:nowrap;color:var(--muted);display:inline-flex;align-items:center;gap:6px}
 .chip[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
-.chip b{font-family:var(--mono);font-weight:500;margin-left:4px;opacity:.7}
-h2.sec{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:22px 2px 10px;font-weight:700;display:flex;justify-content:space-between;gap:8px}
-.strip{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:4px}
-.stat{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:10px 12px;min-width:0}
-.stat b{display:block;font-family:var(--display);font-size:24px;font-weight:800;line-height:1.1}
-.stat span{font-size:12px;color:var(--muted)}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:18px;margin-bottom:10px;overflow:hidden}
-.pick{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 12px;padding:14px 14px 12px;width:100%;text-align:left;background:transparent;border:0}
-.pick .meta{grid-column:1/-1;display:flex;justify-content:space-between;gap:8px;font-size:12.5px;color:var(--muted)}
-.pick .main{all:unset;cursor:pointer;min-width:0;display:block}
-.pick .main:focus-visible{outline:2px solid var(--amber);outline-offset:3px;border-radius:6px}
-.pick strong{display:block;font-family:var(--display);font-weight:800;font-size:21px;line-height:1.15;letter-spacing:-.01em}
-.pick .mu{color:var(--muted);font-size:13.5px}
-.pick .right{text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:4px}
-.pick .pct{font-family:var(--mono);font-size:22px;font-weight:700}
-.pick .bar{grid-column:1/-1;height:6px;border-radius:3px;background:var(--panel2);position:relative;overflow:hidden;margin-top:4px}
-.pick .bar i{position:absolute;inset:0 auto 0 0;background:var(--muted);opacity:.5}
-.pick .bar u{position:absolute;inset:0 auto 0 0;background:var(--amber)}
-.pick .foot{grid-column:1/-1;font-size:13px;color:var(--muted);display:flex;gap:12px;flex-wrap:wrap}
-.pick .foot em{font-style:normal;color:var(--fg)}
-.reason{grid-column:1/-1;margin:2px 0 0;font-size:13.5px;color:var(--fg);opacity:.85;line-height:1.35}
-.ctx{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 4px}
-.ctx span{font-size:12.5px;border:1px solid var(--line);border-radius:999px;padding:4px 10px;color:var(--muted)}
-.clv-good{color:var(--mint)}.clv-bad{color:var(--coral)}
-.feat{border-color:rgba(255,181,71,.45);background:linear-gradient(160deg,rgba(255,181,71,.10),var(--panel) 55%)}
-.star{border:0;background:transparent;width:44px;height:44px;margin:-8px -8px 0 0;color:var(--muted);font-size:20px}
+.chip b{font-family:var(--mono);font-weight:500;font-size:12px;opacity:.65}
+h2.sec{font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin:22px 4px 10px;font-weight:700;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+h2.sec small{letter-spacing:0;text-transform:none;font-weight:500;font-size:12px;color:var(--dim)}
+
+/* team marks */
+.tlogo{width:26px;height:26px;flex:none;border-radius:50%;object-fit:contain;background:rgba(255,255,255,.04)}
+.tlogo.big{width:54px;height:54px}
+.tmono{width:26px;height:26px;flex:none;border-radius:50%;display:grid;place-items:center;font:700 9.5px var(--mono);color:#fff;letter-spacing:-.02em}
+.tmono.big{width:54px;height:54px;font-size:15px}
+
+/* pick card */
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);margin-bottom:12px;overflow:hidden;position:relative}
+.pick{--tc:var(--amber);animation:rise .35s ease both}
+.pick::before{content:"";position:absolute;inset:0 auto 0 0;width:4px;background:var(--tc);opacity:.9}
+.pick.feat{border-color:rgba(255,181,71,.45);background:linear-gradient(160deg,rgba(255,181,71,.09),var(--panel) 50%)}
+@keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.pick-top{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 10px 0 18px;font-size:12px;color:var(--muted)}
+.badge{display:inline-flex;align-items:center;gap:6px;font-weight:600;letter-spacing:.02em}
+.badge i{width:6px;height:6px;border-radius:50%;background:var(--tc)}
+.star{border:0;background:transparent;width:40px;height:40px;color:var(--dim);font-size:19px;border-radius:12px}
 .star[aria-pressed="true"]{color:var(--amber)}
-.game{display:grid;grid-template-columns:64px minmax(0,1fr) auto;gap:10px;align-items:center;padding:12px 14px;width:100%;text-align:left;background:transparent;border:0;border-top:1px solid var(--line)}
+.pick-main{all:unset;cursor:pointer;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 14px;padding:4px 16px 0 18px;width:100%;box-sizing:border-box}
+.pick-main:focus-visible{outline:2px solid var(--amber);outline-offset:-2px;border-radius:var(--r-lg)}
+.pick-head{min-width:0}
+.pick-head strong{display:block;font-family:var(--display);font-weight:800;font-size:23px;line-height:1.1;letter-spacing:-.015em}
+.pick-head strong .num{font-size:15px;color:var(--muted);font-weight:500;margin-left:4px}
+.teams{display:flex;flex-direction:column;gap:6px;margin-top:10px}
+.team{display:flex;align-items:center;gap:9px;min-width:0;font-size:14px;color:var(--muted)}
+.team span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.team em{font-style:normal;font-family:var(--mono);font-size:11.5px;color:var(--dim);margin-left:auto;padding-left:6px}
+.team.on{color:var(--fg);font-weight:600}
+.ring{position:relative;width:76px;height:76px;align-self:center}
+.ring svg{width:76px;height:76px;transform:rotate(-90deg)}
+.ring .v{position:absolute;inset:0;display:grid;place-items:center;text-align:center;line-height:1}
+.ring .v b{font:700 19px var(--mono)}
+.ring .v small{display:block;font-size:10px;color:var(--muted);margin-top:3px;letter-spacing:.04em}
+.tier{display:inline-flex;align-items:center;border-radius:999px;padding:3px 10px;font-size:11.5px;font-weight:700;letter-spacing:.03em}
+.t-Strong{background:rgba(69,224,174,.15);color:var(--mint)}.t-Value{background:rgba(255,181,71,.15);color:var(--amber)}.t-Lean{background:rgba(140,152,180,.14);color:var(--muted)}
+.reason{margin:12px 16px 0 18px;font-size:13.5px;line-height:1.4;color:#C9D1E4;padding:9px 11px;border-radius:var(--r-sm);background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.04)}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;margin:12px 0 0;border-top:1px solid var(--line)}
+.stats div{padding:9px 6px 11px;text-align:center;border-left:1px solid var(--line);min-width:0}
+.stats div:first-child{border-left:0}
+.stats span{display:block;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+.stats b{font:700 14px var(--mono)}
+
+/* games list */
+.game{display:grid;grid-template-columns:minmax(0,1fr) 96px;gap:10px;align-items:center;padding:12px 14px;width:100%;text-align:left;background:transparent;border:0;border-top:1px solid var(--line)}
 .game:first-child{border-top:0}
-.game time{font-size:12px;color:var(--muted)}
-.game .tm{display:flex;flex-direction:column;gap:2px;min-width:0}
-.game .tm span{display:flex;justify-content:space-between;gap:8px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.game .tm small{color:var(--muted);font-weight:500}
-.game .wp{font-family:var(--mono);font-size:13px;text-align:right;color:var(--muted)}
-.game .wp b{display:block;color:var(--fg);font-size:15px}
-.empty{padding:22px 18px;color:var(--muted);text-align:center}
-.empty strong{display:block;color:var(--fg);font-family:var(--display);font-size:19px;margin-bottom:4px}
-.note{font-size:13px;color:var(--muted);padding:2px 4px}
-nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:20;display:grid;grid-template-columns:repeat(4,1fr);background:rgba(11,16,32,.92);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-top:1px solid var(--line);padding:6px max(8px,env(safe-area-inset-right,0px)) calc(6px + env(safe-area-inset-bottom,0px)) max(8px,env(safe-area-inset-left,0px))}
-nav.tabs button{border:0;background:transparent;display:flex;flex-direction:column;align-items:center;gap:2px;min-height:50px;font-size:11.5px;font-weight:600;color:var(--muted)}
-nav.tabs button[aria-current="page"]{color:var(--amber)}
-nav.tabs svg{width:24px;height:24px}
-.sheet-bg{position:fixed;inset:0;background:rgba(3,6,14,.6);z-index:30;display:flex;align-items:flex-end;justify-content:center}
-.sheet{background:var(--panel);border:1px solid var(--line);border-bottom:0;border-radius:22px 22px 0 0;width:100%;max-width:720px;max-height:88%;overflow:auto;padding:8px max(18px,env(safe-area-inset-left,0px)) calc(24px + env(safe-area-inset-bottom,0px)) max(18px,env(safe-area-inset-right,0px))}
-.grab{width:40px;height:5px;border-radius:3px;background:var(--line);margin:4px auto 10px}
-.sheet h3{font-family:var(--display);font-size:24px;font-weight:800;margin:0 0 2px;letter-spacing:-.01em}
-.sheet .close{float:right;border:0;background:var(--panel2);border-radius:999px;width:36px;height:36px}
-.kv{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:0;margin:10px 0}
-.kv div{display:contents}
-.kv span,.kv b{padding:9px 0;border-bottom:1px solid var(--line)}
-.kv span{color:var(--muted)}.kv b{font-family:var(--mono);font-weight:700;text-align:right}
-.why{margin:8px 0 0;padding-left:18px;color:var(--fg)}.why li{margin:4px 0}
-.dist{display:flex;align-items:flex-end;gap:2px;height:84px;margin:10px 0 2px}
-.dist i{flex:1;background:var(--violet);border-radius:2px 2px 0 0;opacity:.8;min-width:2px}
-.dist i.z{background:var(--amber);opacity:1}
-.axis{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);font-family:var(--mono)}
+.game .side{display:flex;flex-direction:column;gap:7px;min-width:0}
+.game .meta2{font-size:11.5px;color:var(--dim);display:flex;gap:8px;flex-wrap:wrap}
+.game .meta2 .tier{padding:1px 8px;font-size:10.5px}
+.game .sc{font:700 15px var(--mono);margin-left:auto;padding-left:8px;color:var(--fg)}
+.wp{display:flex;flex-direction:column;gap:5px;align-items:stretch;font:600 12px var(--mono);color:var(--muted)}
+.wp .bar2{display:flex;height:8px;border-radius:5px;overflow:hidden;background:var(--panel2)}
+.wp .bar2 i{display:block;height:100%}
+.wp .lbl{display:flex;justify-content:space-between}
+.day-h{font-size:12px;font-weight:700;color:var(--muted);padding:10px 14px 6px;background:rgba(255,255,255,.02);border-top:1px solid var(--line);letter-spacing:.03em}
+.day-h:first-child{border-top:0}
+
+.empty{padding:26px 20px;color:var(--muted);text-align:center}
+.empty strong{display:block;color:var(--fg);font-family:var(--display);font-size:20px;margin-bottom:6px}
+.note{font-size:13px;color:var(--muted);padding:2px 4px;margin:6px 0}
+
+/* tab bar */
+nav.tabs{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(10px + env(safe-area-inset-bottom,0px));z-index:20;display:grid;grid-template-columns:repeat(4,1fr);width:min(440px,calc(100% - 24px));background:rgba(17,26,47,.82);backdrop-filter:blur(18px) saturate(1.4);-webkit-backdrop-filter:blur(18px) saturate(1.4);border:1px solid var(--line2);border-radius:22px;padding:5px;box-shadow:0 12px 40px rgba(0,0,0,.45)}
+nav.tabs button{border:0;background:transparent;display:flex;flex-direction:column;align-items:center;gap:2px;min-height:52px;font-size:11px;font-weight:600;color:var(--muted);border-radius:16px}
+nav.tabs button[aria-current="page"]{color:var(--bg);background:var(--amber)}
+nav.tabs svg{width:22px;height:22px}
+
+/* sheet */
+.sheet-bg{position:fixed;inset:0;background:rgba(3,6,14,.62);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);z-index:30;display:flex;align-items:flex-end;justify-content:center;animation:fade .2s ease}
+@keyframes fade{from{opacity:0}}
+.sheet{background:var(--bg2);border:1px solid var(--line);border-bottom:0;border-radius:26px 26px 0 0;width:100%;max-width:720px;max-height:92%;overflow:auto;padding:0 0 calc(28px + env(safe-area-inset-bottom,0px));animation:up .28s cubic-bezier(.2,.8,.2,1)}
+@keyframes up{from{transform:translateY(40px);opacity:.4}}
+.banner{position:relative;padding:12px max(18px,env(safe-area-inset-left,0px)) 18px;background:linear-gradient(110deg,var(--ca) 0%,rgba(13,19,36,.2) 46%,rgba(13,19,36,.2) 54%,var(--ch) 100%)}
+.banner::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(13,19,36,.35),var(--bg2));pointer-events:none}
+.banner>*{position:relative;z-index:1}
+.grab{width:42px;height:5px;border-radius:3px;background:rgba(255,255,255,.35);margin:2px auto 10px}
+.close{position:absolute;right:max(14px,env(safe-area-inset-right,0px));top:12px;border:0;background:rgba(9,13,26,.6);border-radius:999px;width:38px;height:38px;z-index:2}
+.vs{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px;text-align:center;margin-top:6px}
+.vs .t{display:flex;flex-direction:column;align-items:center;gap:6px;min-width:0}
+.vs .t b{font-family:var(--display);font-size:17px;font-weight:700;line-height:1.1}
+.vs .t small{color:var(--muted);font-size:12px}
+.vs .mid{font:700 13px var(--mono);color:var(--muted)}
+.vs .mid big{display:block;font-family:var(--display);font-size:30px;color:var(--fg);letter-spacing:-.02em}
+.sheet-body{padding:0 max(18px,env(safe-area-inset-left,0px)) 0 max(18px,env(safe-area-inset-right,0px))}
+.callout{border-radius:var(--r-md);padding:12px 14px;background:linear-gradient(135deg,rgba(255,181,71,.13),rgba(255,181,71,.04));border:1px solid rgba(255,181,71,.3);font-size:14px;margin-top:4px}
+.callout b{font-family:var(--display);font-size:18px}
+.tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:12px}
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-md);padding:11px 12px;min-width:0}
+.tile span{display:block;font-size:11.5px;color:var(--muted)}
+.tile b{font:700 18px var(--mono)}
+.tile small{display:block;font-size:11.5px;color:var(--dim);margin-top:2px}
+.probbar{margin-top:14px}
+.probbar .bar2{display:flex;height:14px;border-radius:8px;overflow:hidden;background:var(--panel2)}
+.probbar .bar2 i{display:block}
+.probbar .lbl{display:flex;justify-content:space-between;font:600 12.5px var(--mono);margin-top:6px;color:var(--muted)}
+.chart{width:100%;height:auto;display:block;margin-top:6px}
+.ctx{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0 2px}
+.ctx span{font-size:12.5px;border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:5px 11px;color:#C9D1E4}
+.why{margin:6px 0 0;padding-left:18px}.why li{margin:6px 0;font-size:14px}
+.inj{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.inj div{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-md);padding:10px 12px;min-width:0;font-size:13px}
+.inj b{display:block;font-size:12px;color:var(--muted);margin-bottom:4px}
+.inj p{margin:3px 0;display:flex;justify-content:space-between;gap:6px}
+.inj p span:last-child{font:600 11px var(--mono);color:var(--coral)}
 .check{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:8px}
 .check label{font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:4px}
-.check input{background:var(--panel2);border:1px solid var(--line);border-radius:10px;color:var(--fg);padding:10px;font:500 16px var(--mono);width:100%;min-width:0}
-.res{font-size:14px;margin-top:10px;padding:10px 12px;border-radius:12px;background:var(--panel2)}
+.check input{background:var(--panel);border:1px solid var(--line);border-radius:12px;color:var(--fg);padding:11px 10px;font:500 16px var(--mono);width:100%;min-width:0}
+.res{font-size:14px;margin-top:10px;padding:12px 14px;border-radius:var(--r-md);background:var(--panel);border:1px solid var(--line)}
 .W{color:var(--mint)}.L{color:var(--coral)}.P{color:var(--muted)}
+
+/* record */
+.spark{width:100%;height:120px;display:block}
 table.lanes{width:100%;border-collapse:collapse;font-size:13.5px}
-table.lanes th{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);text-align:left;font-weight:700;padding:8px 6px}
-table.lanes td{padding:9px 6px;border-top:1px solid var(--line)}
+table.lanes th{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);text-align:left;font-weight:700;padding:10px 12px}
+table.lanes td{padding:10px 12px;border-top:1px solid var(--line)}
 table.lanes td.n{font-family:var(--mono);text-align:right}
+table.lanes th.n{text-align:right}
 .scroll-x{overflow-x:auto}
 .st-PROVEN{color:var(--mint)}.st-STRUGGLING{color:var(--coral)}.st-BUILDING{color:var(--muted)}
-#hq-canvas{width:100%;aspect-ratio:4/3;max-height:58vh;display:block;border-radius:18px;background:radial-gradient(ellipse at 50% 40%,#1a2547,#0B1020 70%);border:1px solid var(--line);touch-action:none}
-.hq-hint{font-size:12px;color:var(--muted);margin:6px 2px 0}
+.meter{height:8px;border-radius:5px;background:var(--panel2);overflow:hidden;margin-top:8px}
+.meter i{display:block;height:100%;background:linear-gradient(90deg,var(--violet),var(--amber))}
+.result{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;padding:11px 14px;border-top:1px solid var(--line)}
+.result:first-child{border-top:0}
+.result .what{min-width:0}
+.result .what b{display:block;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.result .what small{color:var(--muted);font-size:12px}
+.result .out{text-align:right;font:700 13px var(--mono)}
+.result .out small{display:block;font-weight:500;color:var(--muted)}
+
+/* HQ */
+#hq-canvas{width:100%;aspect-ratio:4/3;max-height:60vh;display:block;border-radius:var(--r-lg);background:radial-gradient(ellipse at 50% 35%,#1d2a52,#090D1A 72%);border:1px solid var(--line);touch-action:none}
 .agents{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
-.agent{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:10px 12px;min-width:0}
-.agent b{font-family:var(--display);font-size:16px;display:flex;align-items:center;gap:6px}
-.agent b i{width:9px;height:9px;border-radius:50%;display:inline-block}
+.agent{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-md);padding:11px 12px;min-width:0}
+.agent b{font-family:var(--display);font-size:16px;display:flex;align-items:center;gap:7px}
+.agent b i{width:9px;height:9px;border-radius:50%;display:inline-block;box-shadow:0 0 10px currentColor}
 .agent p{margin:4px 0 0;font-size:12.5px;color:var(--muted)}
 .feed{list-style:none;margin:0;padding:0}
-.feed li{padding:10px 14px;border-top:1px solid var(--line);font-size:13.5px}
+.feed li{padding:11px 14px;border-top:1px solid var(--line);font-size:13.5px}
 .feed li:first-child{border-top:0}
-.feed time{display:block;font-size:11.5px;color:var(--muted);font-family:var(--mono)}
-.disclaimer{font-size:12px;color:var(--muted);text-align:center;margin:26px 8px 8px}
+.feed time{display:block;font-size:11.5px;color:var(--dim);font-family:var(--mono)}
+.disclaimer{font-size:12px;color:var(--dim);text-align:center;margin:28px 8px 8px}
+.skel{height:150px;border-radius:var(--r-lg);margin-bottom:12px;background:linear-gradient(90deg,var(--panel) 0%,var(--panel2) 50%,var(--panel) 100%);background-size:200% 100%;animation:sh 1.3s linear infinite}
+@keyframes sh{to{background-position:-200% 0}}
+@media (min-width:700px){.tiles{grid-template-columns:repeat(4,minmax(0,1fr))}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
 <body>
-
-
 <div class="wrap">
   <header class="top">
     <div class="brand">
-      <svg class="logo" viewBox="0 0 40 40" aria-hidden="true"><rect x="1" y="1" width="38" height="38" rx="11" fill="#121A2E" stroke="#24314F"/><path d="M9 27 L16 20 L21 24 L31 12" fill="none" stroke="#FFB547" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="31" cy="12" r="3.3" fill="#47DFAE"/></svg>
-      <div><h1>Edge<i>Bot</i></h1><div class="status"><span class="dot" id="dot"></span><span id="status">Connecting…</span></div></div>
+      <svg class="logo" viewBox="0 0 40 40" aria-hidden="true"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1B2647"/><stop offset="1" stop-color="#111A2F"/></linearGradient></defs><rect x="1" y="1" width="38" height="38" rx="12" fill="url(#lg)" stroke="#2C3B5E"/><path d="M9 27 L16 20 L21 24 L31 12" fill="none" stroke="#FFB547" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="31" cy="12" r="3.4" fill="#45E0AE"/></svg>
+      <div><h1>Edge<i>Bot</i></h1><small id="today"></small></div>
     </div>
+    <span class="live"><span class="dot" id="dot"></span><span id="status">Connecting…</span></span>
   </header>
   <main id="view"></main>
-  <p class="disclaimer">Research picks with a tracked record. No bets are placed. Not a guarantee — bet only what you can afford to lose.</p>
+  <p class="disclaimer">Research picks with a tracked, public record. EdgeBot never places bets and nothing here is a guarantee. Bet only what you can afford to lose.</p>
 </div>
 <nav class="tabs" aria-label="Main">
-  <button data-tab="picks" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h10"/></svg>Picks</button>
-  <button data-tab="games"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><path d="M4 12h16M12 4c3 3 3 13 0 16M12 4c-3 3-3 13 0 16"/></svg>Games</button>
+  <button data-tab="picks" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17l5-5 4 3 7-8"/><circle cx="20" cy="7" r="1.6" fill="currentColor"/></svg>Picks</button>
+  <button data-tab="games"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M12 5v14M3 12h4M17 12h4"/></svg>Games</button>
   <button data-tab="record"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 19V11M12 19V5M18 19v-6"/></svg>Record</button>
   <button data-tab="hq"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/></svg>HQ</button>
 </nav>
@@ -152,22 +245,41 @@ table.lanes td.n{font-family:var(--mono);text-align:right}
 <script>
 (() => {
 const E = window.EdgeEngine, SP = E.SPORTS;
-const state = { tab: "picks", sport: "ALL", day: "upcoming", slate: null, model: null, ledger: [], runs: [], db: null, error: "", saved: loadSaved(), now: Date.now() };
+const state = { tab: "picks", sport: "ALL", when: "all", day: "upcoming", slate: null, model: null, ledger: [], runs: [], error: "", saved: loadSaved() };
 const $ = (s, el = document) => el.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-const pct = (p) => p == null ? "—" : Math.round(p * 100) + "%";
-const pct1 = (p) => p == null ? "—" : (p * 100).toFixed(1) + "%";
+const pct = (p) => p == null || !isFinite(p) ? "—" : Math.round(p * 100) + "%";
+const pct1 = (p) => p == null || !isFinite(p) ? "—" : (p * 100).toFixed(1) + "%";
 const am = (x) => x == null ? "—" : x > 0 ? "+" + x : String(x);
-const sgn = (x, d = 1) => (x > 0 ? "+" : "") + x.toFixed(d);
+const sgn = (x, d = 1) => (x > 0 ? "+" : x < 0 ? "−" : "") + Math.abs(x).toFixed(d);
 function loadSaved() { try { return JSON.parse(localStorage.getItem("edgebot2-saved") || "[]"); } catch { return []; } }
 function saveSaved() { try { localStorage.setItem("edgebot2-saved", JSON.stringify(state.saved.slice(-300))); } catch {} }
-function when(iso) {
-  const d = new Date(iso), now = new Date(), t = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-  const day = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime(), diff = Math.round((day(d) - day(now)) / 864e5);
-  return diff === 0 ? t : diff === 1 ? "Tmrw " + t : diff === -1 ? "Yest " + t : d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" }) + " " + t;
+const dayKey = (d) => new Date(d).toLocaleDateString("en-CA");
+function dayLabel(iso) {
+  const d = new Date(iso), t = new Date(), diff = Math.round((new Date(dayKey(d)) - new Date(dayKey(t))) / 864e5);
+  return diff === 0 ? "Today" : diff === 1 ? "Tomorrow" : diff === -1 ? "Yesterday" : d.toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" });
 }
-function ago(iso) { if (!iso) return "never"; const m = Math.round((Date.now() - Date.parse(iso)) / 6e4); return m < 1 ? "just now" : m < 60 ? m + " min ago" : m < 1440 ? Math.round(m / 60) + " h ago" : Math.round(m / 1440) + " d ago"; }
+const timeOf = (iso) => new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+function when(iso) { const l = dayLabel(iso); return (l === "Today" ? "" : l.replace(/,.*$/, "").replace(/^(\w{3})\w+/, "$1") + " ") + timeOf(iso); }
+function ago(iso) { if (!iso) return "never"; const m = Math.round((Date.now() - Date.parse(iso)) / 6e4); return m < 1 ? "just now" : m < 60 ? m + "m ago" : m < 1440 ? Math.round(m / 60) + "h ago" : Math.round(m / 1440) + "d ago"; }
 const sportLabel = (s) => SP[s]?.label || s;
+const SPORT_DOT = { NBA: "#FF8A3D", NFL: "#45E0AE", NCAAF: "#8F80FF", NHL: "#5CC8FF", MLB: "#FF6F61", EPL: "#FFD166" };
+
+/* team marks: logo when ESPN has one, otherwise a monogram in the team colour */
+const teamIndex = new Map();
+function indexTeams() { for (const g of games()) for (const s of ["home", "away"]) teamIndex.set(`${g.sport}|${g[s].abbr}`, g[s]); }
+function teamColor(t, fallback = "#5E6A86") { const c = (t?.color || "").replace("#", ""); return /^[0-9a-f]{6}$/i.test(c) ? "#" + c : fallback; }
+/** Team colour readable on the dark canvas (very dark brand colours fall back to their alternate). */
+function liveColor(t) {
+  for (const raw of [t?.color, t?.alt]) { const c = (raw || "").replace("#", ""); if (!/^[0-9a-f]{6}$/i.test(c)) continue;
+    const [r, g, b] = [0, 2, 4].map((i) => parseInt(c.slice(i, i + 2), 16)); if (0.2126 * r + 0.7152 * g + 0.0722 * b > 60) return "#" + c; }
+  return "#8C98B4";
+}
+function mark(t, sport, big) {
+  const full = t?.logo ? t : teamIndex.get(`${sport}|${t?.abbr}`) || t;
+  if (full?.logo) return `<img class="tlogo ${big ? "big" : ""}" src="${esc(full.logo)}" alt="" loading="lazy" decoding="async" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'tmono${big ? " big" : ""}',textContent:'${esc((full.abbr || "").slice(0, 4))}',style:'background:${teamColor(full)}'}))">`;
+  return `<span class="tmono ${big ? "big" : ""}" style="background:${teamColor(full)}">${esc((full?.abbr || "?").slice(0, 4))}</span>`;
+}
 
 /* ------------------------------ data ------------------------------ */
 const DATA_URL = "https://raw.githubusercontent.com/th4r6xkgcs-ui/edgebot/data/app.json";
@@ -179,20 +291,19 @@ async function connect() {
       if (!r.ok) throw new Error("The first update hasn’t finished yet. Check back in a few minutes.");
       const d = await r.json();
       state.slate = d.slate; state.model = d.model; state.ledger = d.ledger || []; state.runs = d.runs || []; state.error = "";
-      simCache.clear(); render(); if (hq.ready) hq.update();
-    } catch (e) { state.error = navigator.onLine === false ? "You’re offline. Showing the last loaded picks." : e.message; if (!state.slate) render(); }
+      simCache.clear(); indexTeams(); render(); if (hq.ready) hq.update();
+    } catch (e) { state.error = navigator.onLine === false ? "You’re offline — showing the last loaded picks." : e.message; if (!state.slate) render(); }
   };
   await load();
   setInterval(() => { if (!document.hidden) load(); }, 5 * 60000);
   document.addEventListener("visibilitychange", () => { if (!document.hidden) load(); });
 }
 const games = () => (state.slate?.games || []);
-function predOf(g) { return g.pred ? { ...g.pred } : null; }
 const simCache = new Map();
 function sim(g) {
-  const p = predOf(g); if (!p) return null;
+  const p = g.pred; if (!p) return null;
   const k = g.id + "|" + p.margin + "|" + p.total + "|" + g.spread + "|" + g.total;
-  if (!simCache.has(k)) simCache.set(k, E.simulate(g, p, 10000));
+  if (!simCache.has(k)) simCache.set(k, E.simulate(g, { ...p }, 10000));
   return simCache.get(k);
 }
 function currentPicks() {
@@ -201,203 +312,252 @@ function currentPicks() {
     .map((g) => ({ g, p: g.pick, id: `${g.id}~${g.pick.market}~${g.pick.side}` }))
     .sort((a, b) => b.p.ev - a.p.ev);
 }
-function leans() {
-  const now = Date.now();
-  return games().filter((g) => !g.pick && g.pred && g.status === "pre" && Date.parse(g.start) > now)
-    .map((g) => { const home = g.pred.pHome >= g.pred.pAway; return { g, side: home ? g.home : g.away, p: home ? g.pred.pHome : g.pred.pAway }; })
-    .filter((x) => x.p >= 0.6).sort((a, b) => b.p - a.p);
+const pickedTeam = (g, p) => p.side === "home" ? "home" : p.side === "away" ? "away" : null;
+function topReason(g) {
+  const w = g.why || [];
+  return w.find((x) => /more days of rest|wind|back-to-back/i.test(x)) || w.find((x) => /^EdgeBot ratings/.test(x)) || "";
+}
+function contextChips(g) {
+  const c = [];
+  if (g.restDays && g.restDays.home != null && g.restDays.away != null) c.push(`🛌 Rest ${g.away.abbr} ${g.restDays.away}d · ${g.home.abbr} ${g.restDays.home}d`);
+  if (g.weather) c.push(g.weather.outdoor ? `🌬 ${Math.round(g.weather.windMph ?? 0)} mph wind${g.weather.tempF != null ? ` · ${Math.round(g.weather.tempF)}°F` : ""}${g.weather.rainPct ? ` · ${g.weather.rainPct}% rain` : ""}` : `🏟 ${g.weather.roof === "dome" ? "Dome" : "Roof closed"}`);
+  const n = (x) => (x || []).filter((p) => p.status === "OUT" || p.status === "DOUBTFUL").length;
+  if (g.injuries && n(g.injuries.away) + n(g.injuries.home)) c.push(`🩹 Out/doubtful ${g.away.abbr} ${n(g.injuries.away)} · ${g.home.abbr} ${n(g.injuries.home)}`);
+  if (g.venue) c.push(`📍 ${g.venue}`);
+  if (g.tv) c.push(`📺 ${g.tv}`);
+  return c;
 }
 
-/* ------------------------------ views ------------------------------ */
+/* ------------------------------ pieces ------------------------------ */
+function ring(p, pMkt, color) {
+  const R = 32, C = 2 * Math.PI * R, a = Math.max(0, Math.min(1, p)), m = Math.max(0, Math.min(1, pMkt));
+  const tick = (() => { const ang = m * 2 * Math.PI; return `<line x1="${38 + 26 * Math.cos(ang)}" y1="${38 + 26 * Math.sin(ang)}" x2="${38 + 38 * Math.cos(ang)}" y2="${38 + 38 * Math.sin(ang)}" stroke="#EEF1F8" stroke-width="2" stroke-linecap="round"/>`; })();
+  return `<div class="ring" role="img" aria-label="EdgeBot ${pct(p)}, market ${pct(pMkt)}"><svg viewBox="0 0 76 76"><circle cx="38" cy="38" r="${R}" fill="none" stroke="#17213A" stroke-width="7"/><circle cx="38" cy="38" r="${R}" fill="none" stroke="${color}" stroke-width="7" stroke-linecap="round" stroke-dasharray="${(a * C).toFixed(1)} ${C.toFixed(1)}"/>${tick}</svg><div class="v"><div><b>${pct(p)}</b><small>vs ${pct(pMkt)}</small></div></div></div>`;
+}
+function teamLine(t, sport, on, rank) {
+  return `<div class="team ${on ? "on" : ""}">${mark(t, sport)}<span>${rank ? `<small class="num" style="color:var(--dim)">#${rank}</small> ` : ""}${esc(t.short || t.name)}</span>${t.record ? `<em>${esc(t.record)}</em>` : ""}</div>`;
+}
+function pickCard({ g, p, id }, feat) {
+  const saved = state.saved.includes(id), side = pickedTeam(g, p), tc = side ? liveColor(g[side]) : "var(--amber)";
+  const ringColor = p.tier === "Strong" ? "#45E0AE" : p.tier === "Value" ? "#FFB547" : "#B9C3DA";
+  const why = topReason(g);
+  return `<article class="card pick ${feat ? "feat" : ""}" style="--tc:${tc}">
+    <div class="pick-top"><span class="badge"><i style="background:${SPORT_DOT[g.sport]}"></i>${esc(sportLabel(g.sport))} · ${esc(p.market)} · ${esc(when(g.start))}</span>
+      <span style="display:flex;align-items:center;gap:6px"><span class="tier t-${p.tier}">${p.tier}</span><button class="star" data-save="${esc(id)}" aria-pressed="${saved}" aria-label="${saved ? "Unsave" : "Save"} pick">${saved ? "★" : "☆"}</button></span></div>
+    <button class="pick-main" data-game="${esc(g.id)}">
+      <div class="pick-head"><strong>${esc(p.label)}<span class="num">${am(p.price)}</span></strong>
+        <div class="teams">${teamLine(g.away, g.sport, side === "away", g.rank?.away)}${teamLine(g.home, g.sport, side === "home", g.rank?.home)}</div></div>
+      ${ring(p.p, p.pMkt, ringColor)}
+    </button>
+    ${why ? `<p class="reason">${esc(why)}</p>` : ""}
+    <div class="stats"><div><span>Edge</span><b class="good">${sgn(p.edge * 100)}%</b></div><div><span>EV</span><b>${sgn(p.ev * 100)}%</b></div><div><span>Fair</span><b>${am(p.fair)}</b></div><div><span>Price</span><b>${am(p.price)}</b></div></div>
+  </article>`;
+}
+function winBar(g, aP, hP, dP = 0) {
+  const ca = liveColor(g.away), ch = liveColor(g.home);
+  return `<div class="bar2"><i style="width:${(aP * 100).toFixed(1)}%;background:${ca}"></i>${dP ? `<i style="width:${(dP * 100).toFixed(1)}%;background:#3A4766"></i>` : ""}<i style="width:${(hP * 100).toFixed(1)}%;background:${ch}"></i></div>`;
+}
+function gameRow(g) {
+  const p = g.pred, fin = g.status === "post";
+  const line = g.spread != null ? `${g.spread < 0 ? g.home.abbr : g.away.abbr} −${Math.abs(g.spread)}` : g.mlHome != null ? `ML ${am(g.mlAway)} / ${am(g.mlHome)}` : "No line yet";
+  const right = fin ? `<div class="wp" style="align-items:flex-end;color:var(--muted)">Final</div>`
+    : p ? `<div class="wp"><div class="lbl"><span>${pct(p.pAway)}</span><span>${pct(p.pHome)}</span></div>${winBar(g, p.pAway, p.pHome, p.pDraw)}</div>` : `<div class="wp" style="align-items:flex-end">—</div>`;
+  const sc = (side) => fin ? `<b class="sc">${g[side].score}</b>` : "";
+  return `<button class="game" data-game="${esc(g.id)}"><span class="side">
+      <span class="team ${fin && g.away.score > g.home.score ? "on" : ""}" style="color:var(--fg)">${mark(g.away, g.sport)}<span>${esc(g.away.short || g.away.name)}</span>${sc("away")}</span>
+      <span class="team ${fin && g.home.score > g.away.score ? "on" : ""}" style="color:var(--fg)">${mark(g.home, g.sport)}<span>${esc(g.home.short || g.home.name)}</span>${sc("home")}</span>
+      <span class="meta2"><span>${esc(timeOf(g.start))} · ${esc(g.sport === "NCAAF" ? "CFB" : g.sport)}</span>${fin ? "" : `<span>${esc(line)}${g.total != null ? ` · O/U ${g.total}` : ""}</span>`}${g.pick ? `<span class="tier t-${g.pick.tier}">${esc(g.pick.label)}</span>` : ""}</span>
+    </span>${right}</button>`;
+}
 function sportChips(list, key = "sport") {
   const counts = {}; for (const x of list) counts[x] = (counts[x] || 0) + 1;
   const sports = Object.keys(SP).filter((s) => counts[s]);
   return `<div class="chips" role="group" aria-label="Sport">${["ALL", ...sports, ...(key === "sport" ? ["SAVED"] : [])].map((s) =>
-    `<button class="chip" data-${key}="${s}" aria-pressed="${state.sport === s}">${s === "ALL" ? "All" : s === "SAVED" ? "★ Saved" : sportLabel(s)}${s !== "ALL" && s !== "SAVED" ? `<b>${counts[s]}</b>` : ""}</button>`).join("")}</div>`;
+    `<button class="chip" data-${key}="${s}" aria-pressed="${state.sport === s}">${s !== "ALL" && s !== "SAVED" ? `<i style="width:7px;height:7px;border-radius:50%;background:${SPORT_DOT[s]}"></i>` : ""}${s === "ALL" ? "All" : s === "SAVED" ? "★ Saved" : sportLabel(s)}${s !== "ALL" && s !== "SAVED" ? `<b>${counts[s]}</b>` : ""}</button>`).join("")}</div>`;
 }
-/** The one line that best explains a pick: a tested situational effect first, then the rating view. */
-function topReason(g) {
-  const w = g.why || [];
-  return w.find((x) => /rest|wind|back-to-back/i.test(x)) || w.find((x) => /^EdgeBot ratings/.test(x)) || "";
+function record() {
+  const g = state.ledger.filter((r) => r.status === "graded"), dec = g.filter((r) => r.result !== "P"), w = dec.filter((r) => r.result === "W").length;
+  return { g, dec, w, l: dec.length - w, units: g.reduce((a, r) => a + (r.units || 0), 0) };
 }
-function contextChips(g) {
-  const c = [];
-  if (g.restDays && g.restDays.home != null && g.restDays.away != null) c.push(`Rest ${g.away.abbr} ${g.restDays.away}d · ${g.home.abbr} ${g.restDays.home}d`);
-  if (g.weather) c.push(g.weather.outdoor ? `Wind ${Math.round(g.weather.windMph ?? 0)} mph${g.weather.tempF != null ? ` · ${Math.round(g.weather.tempF)}°F` : ""}` : `Roof: ${g.weather.roof}`);
-  const inj = g.injuries; if (inj) { const n = (x) => (x || []).filter((p) => p.status === "OUT" || p.status === "DOUBTFUL").length; if (n(inj.away) + n(inj.home)) c.push(`Out/doubtful: ${g.away.abbr} ${n(inj.away)} · ${g.home.abbr} ${n(inj.home)}`); }
-  return c;
-}
-function pickCard({ g, p, id }, feat) {
-  const saved = state.saved.includes(id), s = sim(g);
-  return `<article class="card ${feat ? "feat" : ""}"><div class="pick">
-    <div class="meta"><span>${esc(sportLabel(g.sport))} · ${esc(p.market)} · ${esc(when(g.start))}</span>
-      <button class="star" data-save="${esc(id)}" aria-pressed="${saved}" aria-label="${saved ? "Unsave" : "Save"} pick">${saved ? "★" : "☆"}</button></div>
-    <button class="main" data-game="${esc(g.id)}">
-      <strong>${esc(p.label)} <span class="num" style="font-size:15px;color:var(--muted);font-weight:500">${am(p.price)}</span></strong>
-      <span class="mu">${esc(g.away.name)} @ ${esc(g.home.name)}</span></button>
-    <div class="right"><span class="pill t-${p.tier}">${p.tier}</span><span class="pct">${pct(p.p)}</span></div>
-    <div class="bar" aria-hidden="true"><u style="width:${(p.p * 100).toFixed(1)}%"></u><i style="width:${(p.pMkt * 100).toFixed(1)}%"></i></div>
-    ${topReason(g) ? `<p class="reason">${esc(topReason(g))}</p>` : ""}
-    <div class="foot"><span>Market <em class="num">${pct(p.pMkt)}</em></span><span>Edge <em class="num">${sgn(p.edge * 100)}%</em></span><span>Fair <em class="num">${am(p.fair)}</em></span>${s && p.market !== "moneyline" ? `<span>Sim hits <em class="num">${pct(p.market === "total" ? (p.side === "over" ? s.over : s.under) / (s.over + s.under) : (p.side === "home" ? s.cover : 1 - s.cover - s.push) / (1 - s.push))}</em></span>` : ""}</div>
-  </div></article>`;
-}
+
+/* ------------------------------ views ------------------------------ */
 function viewPicks() {
   if (!state.slate) return loadingOrError();
   let picks = currentPicks();
+  const today = dayKey(Date.now()), tmrw = dayKey(Date.now() + 864e5);
+  const whenOk = (x) => state.when === "all" || (state.when === "today" ? dayKey(x.g.start) <= today : state.when === "tomorrow" ? dayKey(x.g.start) === tmrw : dayKey(x.g.start) > tmrw);
+  const byWhen = { today: picks.filter((x) => dayKey(x.g.start) <= today).length, tomorrow: picks.filter((x) => dayKey(x.g.start) === tmrw).length, later: picks.filter((x) => dayKey(x.g.start) > tmrw).length };
+  picks = picks.filter(whenOk);
   const allSports = picks.map((x) => x.g.sport);
   if (state.sport === "SAVED") picks = picks.filter((x) => state.saved.includes(x.id));
   else if (state.sport !== "ALL") picks = picks.filter((x) => x.g.sport === state.sport);
   const best = picks.filter((x) => x.p.tier !== "Lean").slice(0, 3), rest = picks.filter((x) => !best.includes(x));
-  const graded = state.ledger.filter((r) => r.status === "graded" && r.result !== "P"), w = graded.filter((r) => r.result === "W").length;
-  const units = state.ledger.reduce((a, r) => a + (r.units || 0), 0);
-  const L = leans().filter((x) => state.sport === "ALL" || x.g.sport === state.sport);
-  return `<div class="strip">
-      <div class="stat"><b class="num">${currentPicks().length}</b><span>open picks</span></div>
-      <div class="stat"><b class="num">${graded.length ? Math.round(100 * w / graded.length) + "%" : "—"}</b><span>${graded.length ? `${w}–${graded.length - w} record` : "record starts soon"}</span></div>
-      <div class="stat"><b class="num" style="color:${units >= 0 ? "var(--mint)" : "var(--coral)"}">${graded.length ? sgn(units) + "u" : "—"}</b><span>units (1u flat)</span></div>
-    </div>
+  const R = record(), clv = state.ledger.filter((r) => r.clv), beat = clv.filter((r) => (r.clv.pts ?? 0) > 0 || (r.clv.prob ?? 0) > 0.002).length;
+  const total = currentPicks().length, strong = currentPicks().filter((x) => x.p.tier !== "Lean").length;
+  return `<section class="hero">
+      <div class="eyebrow">${esc(new Date().toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" }))}</div>
+      <h2>${total ? `<em>${total}</em> picks on the board${strong ? `, ${strong} with real value` : ""}` : "No edges on the board yet"}</h2>
+      <div class="kpis">
+        <div class="kpi"><b class="num">${R.dec.length ? `${R.w}–${R.l}` : "—"}</b><span>${R.dec.length ? `record · ${Math.round(100 * R.w / R.dec.length)}%` : "record starts soon"}</span></div>
+        <div class="kpi"><b class="num ${R.units > 0 ? "good" : R.units < 0 ? "bad" : ""}">${R.g.length ? sgn(R.units) + "u" : "—"}</b><span>units, 1u flat</span></div>
+        <div class="kpi"><b class="num ${clv.length && beat / clv.length >= 0.5 ? "good" : ""}">${clv.length ? Math.round(100 * beat / clv.length) + "%" : "—"}</b><span>beat the close</span></div>
+      </div></section>
+    <div class="seg" role="group" aria-label="When">${[["all", "All", total], ["today", "Today", byWhen.today], ["tomorrow", "Tomorrow", byWhen.tomorrow], ["later", "Later", byWhen.later]].map(([k, l, n]) => `<button data-when="${k}" aria-pressed="${state.when === k}">${l}<b>${n}</b></button>`).join("")}</div>
     ${sportChips(allSports)}
-    ${best.length ? `<h2 class="sec"><span>Best bets</span></h2>${best.map((x) => pickCard(x, true)).join("")}` : ""}
-    ${rest.length ? `<h2 class="sec"><span>${best.length ? "More picks" : "Picks"}</span><span>${rest.length}</span></h2>${rest.map((x) => pickCard(x)).join("")}` : ""}
-    ${!picks.length ? `<div class="card empty"><strong>${state.sport === "SAVED" ? "No saved picks" : "No edges right now"}</strong>${state.sport === "SAVED" ? "Tap ☆ on a pick to keep it here." : "EdgeBot only makes a pick when its ratings disagree with the price. Ratings are learning from every final — picks appear as they firm up. Leans below are the model’s favorites without an edge."}</div>` : ""}
-    ${L.length ? `<h2 class="sec"><span>Leans · no price edge, not tracked</span><span>${L.length}</span></h2><div class="card">${L.slice(0, 12).map((x) => gameRow(x.g)).join("")}</div>` : ""}`;
-}
-function gameRow(g) {
-  const p = g.pred, fin = g.status === "post", s = fin ? null : sim(g);
-  const right = fin ? `<b>${g.away.score}–${g.home.score}</b>Final` : p ? `<b>${pct(Math.max(s?.home ?? p.pHome, s?.away ?? p.pAway))}</b>${esc((s?.home ?? p.pHome) >= (s?.away ?? p.pAway) ? g.home.abbr : g.away.abbr)}` : `<b>—</b>no line`;
-  const line = g.spread != null ? `${g.spread < 0 ? g.home.abbr : g.away.abbr} -${Math.abs(g.spread)}` : g.mlHome != null ? `ML ${am(g.mlAway)}/${am(g.mlHome)}` : "";
-  return `<button class="game" data-game="${esc(g.id)}"><time>${esc(when(g.start))}<br>${esc(g.sport)}</time>
-    <span class="tm"><span>${esc(g.away.name)} ${g.pick ? `<span class="pill t-${g.pick.tier}">${g.pick.tier}</span>` : ""}</span><span>${esc(g.home.name)}</span><small>${esc(line)}${g.total != null ? ` · O/U ${g.total}` : ""}</small></span>
-    <span class="wp">${right}</span></button>`;
+    ${best.length ? `<h2 class="sec"><span>Best bets</span><small>highest expected value</small></h2>${best.map((x) => pickCard(x, true)).join("")}` : ""}
+    ${rest.length ? `<h2 class="sec"><span>${best.length ? "More picks" : "Picks"}</span><small>${rest.length} · sorted by expected value</small></h2>${rest.map((x) => pickCard(x)).join("")}` : ""}
+    ${!picks.length ? `<div class="card empty"><strong>${state.sport === "SAVED" ? "No saved picks" : "Nothing here yet"}</strong>${state.sport === "SAVED" ? "Tap ☆ on a pick to keep it here." : "EdgeBot only picks when its numbers disagree with the price. Try another day or sport — or check Games for every matchup."}</div>` : ""}`;
 }
 function viewGames() {
   if (!state.slate) return loadingOrError();
   const now = Date.now(), gs = games();
-  const groups = { upcoming: gs.filter((g) => g.status !== "post" && Date.parse(g.start) > now - 4 * 3600e3), finals: gs.filter((g) => g.status === "post") };
+  const groups = { upcoming: gs.filter((g) => g.status !== "post" && Date.parse(g.start) > now - 4 * 3600e3), finals: gs.filter((g) => g.status === "post").reverse() };
   let list = groups[state.day] || [];
   const sports = list.map((g) => g.sport);
   if (state.sport !== "ALL" && state.sport !== "SAVED") list = list.filter((g) => g.sport === state.sport);
-  return `<div class="chips" role="group" aria-label="When">
-      <button class="chip" data-day="upcoming" aria-pressed="${state.day === "upcoming"}">Upcoming<b>${groups.upcoming.length}</b></button>
-      <button class="chip" data-day="finals" aria-pressed="${state.day === "finals"}">Finals<b>${groups.finals.length}</b></button></div>
+  const days = []; for (const g of list) { const l = dayLabel(g.start); if (!days.length || days[days.length - 1][0] !== l) days.push([l, []]); days[days.length - 1][1].push(g); }
+  return `<div class="seg" role="group" aria-label="Which games">
+      <button data-day="upcoming" aria-pressed="${state.day === "upcoming"}">Upcoming<b>${groups.upcoming.length}</b></button>
+      <button data-day="finals" aria-pressed="${state.day === "finals"}">Finals<b>${groups.finals.length}</b></button></div>
     ${sportChips(sports, "sport2")}
-    <p class="note">Every game runs 10,000 simulations on your phone from EdgeBot’s projection. Tap a game for the full breakdown and to check your own line.</p>
-    ${list.length ? `<div class="card">${list.map(gameRow).join("")}</div>` : `<div class="card empty"><strong>No games here yet</strong>The next scheduled run adds schedules, lines and finals.</div>`}`;
+    ${days.length ? `<div class="card">${days.map(([l, gsx]) => `<div class="day-h">${esc(l)} · ${gsx.length}</div>${gsx.map(gameRow).join("")}`).join("")}</div>
+      <p class="note">Bars show EdgeBot’s win chances. Tap a game for 10,000 simulations, the reasons, injuries, and to check your own line.</p>`
+      : `<div class="card empty"><strong>No games here yet</strong>The next update adds schedules, lines and finals.</div>`}`;
+}
+function spark(rows) {
+  if (rows.length < 2) return `<p class="note" style="padding:8px 2px">The units chart appears after a few graded picks.</p>`;
+  let u = 0; const pts = [0, ...rows.map((r) => (u += r.units || 0))];
+  const W = 340, H = 120, P = 10, min = Math.min(0, ...pts), max = Math.max(0.5, ...pts), x = (i) => P + (i * (W - 2 * P)) / (pts.length - 1), y = (v) => H - P - ((v - min) * (H - 2 * P)) / (max - min || 1);
+  const d = pts.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(""), last = pts[pts.length - 1], col = last >= 0 ? "#45E0AE" : "#FF6F61";
+  return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Units over time, now ${sgn(last)}"><defs><linearGradient id="sg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${col}" stop-opacity=".35"/><stop offset="1" stop-color="${col}" stop-opacity="0"/></linearGradient></defs>
+    <line x1="${P}" x2="${W - P}" y1="${y(0)}" y2="${y(0)}" stroke="#2C3B5E" stroke-dasharray="3 4"/><path d="${d}L${x(pts.length - 1)},${y(min)}L${x(0)},${y(min)}Z" fill="url(#sg)"/><path d="${d}" fill="none" stroke="${col}" stroke-width="2.5" stroke-linejoin="round"/><circle cx="${x(pts.length - 1)}" cy="${y(last)}" r="4" fill="${col}"/></svg>`;
 }
 function viewRecord() {
   if (!state.slate && !state.model) return loadingOrError();
-  const L = state.ledger, g = L.filter((r) => r.status === "graded"), dec = g.filter((r) => r.result !== "P");
-  const w = dec.filter((r) => r.result === "W").length, units = g.reduce((a, r) => a + (r.units || 0), 0);
+  const L = state.ledger, R = record(), g = R.g;
   const by = (key) => { const m = {}; for (const r of g) { const k = key(r); (m[k] ||= { w: 0, l: 0, p: 0, u: 0 }); r.result === "W" ? m[k].w++ : r.result === "L" ? m[k].l++ : m[k].p++; m[k].u += r.units || 0; } return m; };
-  const tiers = by((r) => r.tier), lanes = state.model?.lanes || {}, blend = state.model?.blend || {};
-  const withClv = L.filter((r) => r.clv), beat = withClv.filter((r) => (r.clv.pts ?? 0) > 0 || (r.clv.prob ?? 0) > 0.002).length, lost = withClv.filter((r) => (r.clv.pts ?? 0) < 0 || (r.clv.prob ?? 0) < -0.002).length;
-  const avgPts = (() => { const xs = withClv.filter((r) => r.clv.pts != null).map((r) => r.clv.pts); return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null; })();
-  const avgProb = (() => { const xs = withClv.filter((r) => r.clv.prob != null).map((r) => r.clv.prob); return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null; })();
-  const voids = L.filter((r) => r.status === "void").length;
-  const row = (k, v) => `<tr><td>${esc(k)}</td><td class="n">${v.w}–${v.l}${v.p ? "–" + v.p : ""}</td><td class="n">${v.w + v.l ? Math.round(100 * v.w / (v.w + v.l)) + "%" : "—"}</td><td class="n" style="color:${v.u >= 0 ? "var(--mint)" : "var(--coral)"}">${sgn(v.u)}u</td></tr>`;
-  const laneRows = Object.entries(lanes).map(([k, v]) => { const st = E.laneState(v); return `<tr><td>${esc(k.replace("|", " · "))}</td><td class="n">${v.w}–${v.l}</td><td class="n">${v.n ? (v.brier / v.n).toFixed(3) : "—"}</td><td class="st-${st}">${st === "PROVEN" ? "Working" : st === "STRUGGLING" ? "Struggling" : "Building"}</td></tr>`; }).join("");
-  return `<div class="strip">
-      <div class="stat"><b class="num">${w}–${dec.length - w}</b><span>all-time${g.length - dec.length ? ` · ${g.length - dec.length} push` : ""}${voids ? ` · ${voids} void` : ""}</span></div>
-      <div class="stat"><b class="num">${dec.length ? Math.round(100 * w / dec.length) + "%" : "—"}</b><span>win rate</span></div>
-      <div class="stat"><b class="num" style="color:${units >= 0 ? "var(--mint)" : "var(--coral)"}">${sgn(units)}u</b><span>${g.length ? `ROI ${sgn(100 * units / g.length)}%` : "no graded picks yet"}</span></div></div>
-    <h2 class="sec"><span>Beat the closing line?</span><span>${withClv.length} checked</span></h2>
-    <div class="card" style="padding:14px">${withClv.length ? `<div class="kv" style="margin:0">
-      <div><span>Got a better number than the close</span><b class="${beat >= lost ? "clv-good" : "clv-bad"}">${beat} of ${withClv.length} (${Math.round(100 * beat / withClv.length)}%)</b></div>
-      ${avgPts != null ? `<div><span>Average line value (spreads & totals)</span><b class="${avgPts >= 0 ? "clv-good" : "clv-bad"}">${sgn(avgPts, 2)} pts</b></div>` : ""}
-      ${avgProb != null ? `<div><span>Average price value (moneylines)</span><b class="${avgProb >= 0 ? "clv-good" : "clv-bad"}">${sgn(avgProb * 100, 1)}%</b></div>` : ""}
-    </div>` : ""}<p class="note" style="margin:${withClv.length ? "10px" : "0"} 0 0">Closing-line value is the earliest honest test of an edge: if the market keeps moving toward EdgeBot’s picks before kickoff, the picks are likely sharp — long before wins and losses settle it.</p></div>
-    <h2 class="sec"><span>By strength</span></h2>
-    <div class="card scroll-x"><table class="lanes"><thead><tr><th>Tier</th><th>W–L</th><th>Win</th><th>Units</th></tr></thead><tbody>${["Strong", "Value", "Lean"].filter((t) => tiers[t]).map((t) => row(t, tiers[t])).join("") || `<tr><td colspan="4" class="note">Grades appear after games with saved picks go final.</td></tr>`}</tbody></table></div>
+  const tiers = by((r) => r.tier), sports = by((r) => r.sport), lanes = state.model?.lanes || {}, blend = state.model?.blend || {};
+  const withClv = L.filter((r) => r.clv), beat = withClv.filter((r) => (r.clv.pts ?? 0) > 0 || (r.clv.prob ?? 0) > 0.002).length;
+  const avg = (f) => { const xs = withClv.map(f).filter((v) => v != null); return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null; };
+  const avgPts = avg((r) => r.clv.pts), avgProb = avg((r) => r.clv.prob), voids = L.filter((r) => r.status === "void").length, open = L.filter((r) => r.status === "open").length;
+  const row = (k, v) => `<tr><td>${esc(k)}</td><td class="n">${v.w}–${v.l}${v.p ? "–" + v.p : ""}</td><td class="n">${v.w + v.l ? Math.round(100 * v.w / (v.w + v.l)) + "%" : "—"}</td><td class="n ${v.u >= 0 ? "good" : "bad"}">${sgn(v.u)}u</td></tr>`;
+  const laneRows = Object.entries(lanes).map(([k, v]) => { const st = E.laneState(v); return `<tr><td>${esc(sportLabel(k.split("|")[0]))} · ${esc(k.split("|")[1])}</td><td class="n">${v.w}–${v.l}</td><td class="n">${v.n ? (v.brier / v.n).toFixed(3) : "—"}</td><td class="st-${st}">${st === "PROVEN" ? "Working" : st === "STRUGGLING" ? "Struggling" : "Building"}</td></tr>`; }).join("");
+  const graded = [...g].sort((a, b) => (a.gradedAt || "").localeCompare(b.gradedAt || ""));
+  return `<section class="hero"><div class="eyebrow">Verified record</div>
+      <h2>${R.dec.length ? `<em>${R.w}–${R.l}</em>${g.length - R.dec.length ? `–${g.length - R.dec.length}` : ""} · ${sgn(R.units)}u` : "Grading starts with tonight’s finals"}</h2>
+      <div class="kpis"><div class="kpi"><b class="num">${R.dec.length ? Math.round(100 * R.w / R.dec.length) + "%" : "—"}</b><span>win rate</span></div>
+        <div class="kpi"><b class="num ${R.units >= 0 ? "good" : "bad"}">${g.length ? sgn(100 * R.units / g.length) + "%" : "—"}</b><span>ROI per pick</span></div>
+        <div class="kpi"><b class="num">${open}</b><span>open${voids ? ` · ${voids} void` : ""}</span></div></div>
+      ${spark(graded)}</section>
+    <h2 class="sec"><span>Beat the closing line?</span><small>${withClv.length} checked</small></h2>
+    <div class="card" style="padding:14px 16px">${withClv.length ? `<div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px"><b style="font-family:var(--display);font-size:26px" class="${beat / withClv.length >= 0.5 ? "good" : "bad"}">${Math.round(100 * beat / withClv.length)}%</b><span class="note" style="margin:0">${beat} of ${withClv.length} picks got a better number than the close${avgPts != null ? ` · avg ${sgn(avgPts, 2)} pts` : ""}${avgProb != null ? ` · avg ${sgn(avgProb * 100, 1)}% on prices` : ""}</span></div><div class="meter"><i style="width:${(100 * beat / withClv.length).toFixed(0)}%"></i></div>` : ""}
+      <p class="note" style="margin:${withClv.length ? "10px" : "0"} 0 0;padding:0">The quickest honest test of an edge: if lines keep moving toward EdgeBot’s picks before kickoff, the picks are likely sharp — long before wins and losses settle it.</p></div>
+    <h2 class="sec"><span>By strength & sport</span></h2>
+    <div class="card scroll-x"><table class="lanes"><thead><tr><th></th><th class="n">W–L</th><th class="n">Win</th><th class="n">Units</th></tr></thead><tbody>${[...["Strong", "Value", "Lean"].filter((t) => tiers[t]).map((t) => row(t, tiers[t])), ...Object.keys(sports).map((s) => row(sportLabel(s), sports[s]))].join("") || `<tr><td colspan="4" class="note">Grades appear as games with saved picks go final.</td></tr>`}</tbody></table></div>
     <h2 class="sec"><span>Which models are working</span></h2>
-    <div class="card scroll-x"><table class="lanes"><thead><tr><th>Lane</th><th>W–L</th><th>Brier</th><th>State</th></tr></thead><tbody>${laneRows || `<tr><td colspan="4" class="note">Each sport × market is tracked separately. “Working” needs 30+ graded picks and beats the market’s own forecast.</td></tr>`}</tbody></table></div>
+    <div class="card scroll-x"><table class="lanes"><thead><tr><th>Lane</th><th class="n">W–L</th><th class="n">Brier</th><th>State</th></tr></thead><tbody>${laneRows || `<tr><td colspan="4" class="note">Each sport × market is tracked on its own. “Working” needs 30+ graded picks and must beat the market’s own forecast.</td></tr>`}</tbody></table></div>
     <h2 class="sec"><span>What EdgeBot has learned</span></h2>
-    <div class="card scroll-x"><table class="lanes"><thead><tr><th>Sport</th><th>Finals</th><th>Teams</th><th>Trust in own ratings</th></tr></thead><tbody>${Object.entries(blend).map(([s, b]) => `<tr><td>${esc(sportLabel(s))}</td><td class="n">${b.finals}</td><td class="n">${b.teams}</td><td class="n">${Math.round(b.weight * 100)}% <span class="note">(${b.n} scored)</span></td></tr>`).join("") || `<tr><td colspan="4" class="note">Learning starts with the first verified finals.</td></tr>`}</tbody></table></div>
-    <p class="note">“Trust” is learned from finals scored against their closing line: it’s the weight on EdgeBot’s ratings that would have predicted those results best, shrunk toward zero and capped at 55%. Below 30 scored finals a sport uses a 15% starting weight. NFL measures ≈0% on 600 games — the NFL market is very sharp — so NFL picks come only from tested effects (wind, rest).</p>
+    <div class="card scroll-x"><table class="lanes"><thead><tr><th>Sport</th><th class="n">Finals</th><th class="n">Teams</th><th class="n">Trust</th></tr></thead><tbody>${Object.entries(blend).map(([s, b]) => `<tr><td><i style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${SPORT_DOT[s]};margin-right:7px"></i>${esc(sportLabel(s))}</td><td class="n">${(b.finals || 0).toLocaleString()}</td><td class="n">${b.teams}</td><td class="n">${Math.round(b.weight * 100)}%<br><span style="color:var(--dim);font-size:11px">${b.n >= 30 ? `${b.n} scored` : `${b.n}/30 scored`}</span></td></tr>`).join("") || `<tr><td colspan="4" class="note">Learning starts with the first verified finals.</td></tr>`}</tbody></table></div>
+    <p class="note">Trust is the weight on EdgeBot’s own ratings that would have predicted past finals best against their closing lines — shrunk toward zero and capped at 55%. Until 30 finals are scored a sport starts at 15%. NFL measures ≈0% on 600 games, so NFL picks come only from tested effects (wind, rest).</p>
     <h2 class="sec"><span>Recent results</span></h2>
-    <div class="card">${g.slice(0, 25).map((r) => `<div class="game" style="cursor:default"><time>${esc(when(r.start))}<br>${esc(r.sport)}</time><span class="tm"><span>${esc(r.label)} <span class="num" style="color:var(--muted)">${am(r.price)}</span></span><small>${esc(r.final || r.matchup)}${r.clv ? ` · <span class="${(r.clv.pts ?? r.clv.prob) >= 0 ? "clv-good" : "clv-bad"}">CLV ${r.clv.pts != null ? sgn(r.clv.pts, 1) + " pts" : sgn(r.clv.prob * 100, 1) + "%"}</span>` : ""}</small></span><span class="wp"><b class="${r.result}">${r.result === "W" ? "Win" : r.result === "L" ? "Loss" : "Push"}</b>${sgn(r.units || 0, 2)}u</span></div>`).join("") || `<div class="empty">No graded picks yet.</div>`}</div>`;
+    <div class="card">${[...g].sort((a, b) => (b.gradedAt || "").localeCompare(a.gradedAt || "")).slice(0, 30).map((r) => { const side = r.side === "home" ? r.home : r.side === "away" ? r.away : null, t = side ? teamIndex.get(`${r.sport}|${side}`) || { abbr: side } : null;
+      return `<div class="result">${t ? mark(t, r.sport) : `<span class="tmono" style="background:#2C3B5E">${r.side === "over" ? "O" : r.side === "under" ? "U" : "D"}</span>`}<div class="what"><b>${esc(r.label)} <span class="num" style="color:var(--muted);font-weight:500">${am(r.price)}</span></b><small>${esc(r.final || r.matchup)}${r.clv ? ` · <span class="${(r.clv.pts ?? r.clv.prob) >= 0 ? "good" : "bad"}">CLV ${r.clv.pts != null ? sgn(r.clv.pts, 1) + " pts" : sgn(r.clv.prob * 100, 1) + "%"}</span>` : ""}</small></div><div class="out"><span class="${r.result}">${r.result === "W" ? "WIN" : r.result === "L" ? "LOSS" : "PUSH"}</span><small>${sgn(r.units || 0, 2)}u</small></div></div>`; }).join("") || `<div class="empty" style="padding:18px">No graded picks yet.</div>`}</div>`;
 }
 function viewHQ() {
-  const m = state.model, last = state.runs[0], open = currentPicks().length;
+  const m = state.model, open = currentPicks().length;
   const agents = [
-    ["Scout", "var(--sky)", m ? `Read ${m.lastSummary?.games ?? 0} games across ${(m.lastSummary?.sports || []).map(sportLabel).join(", ") || "—"}.` : "Waiting for the first run."],
-    ["Quant", "var(--violet)", m ? `${Object.values(m.archive || {}).reduce((a, b) => a + b, 0).toLocaleString()} verified finals in the archive; ${Object.values(m.blend || {}).reduce((a, b) => a + b.teams, 0)} teams rated.` : "—"],
-    ["Simulator", "var(--amber)", `${games().filter((g) => g.pred).length} games × 10,000 sims on this phone.`],
-    ["Grader", "var(--mint)", m ? `${m.lastSummary?.graded ?? 0} picks graded last run.` : "—"],
-    ["Coach", "var(--coral)", `${Object.keys(m?.lanes || {}).length} lanes calibrated; struggling lanes are capped at Lean.`],
+    ["Scout", "#5CC8FF", m ? `Read ${m.lastSummary?.games ?? 0} games across ${(m.lastSummary?.sports || []).map(sportLabel).join(", ") || "—"}.` : "Waiting for the first run."],
+    ["Quant", "#8F80FF", m ? `${Object.values(m.archive || {}).reduce((a, b) => a + b, 0).toLocaleString()} verified finals; ${Object.values(m.blend || {}).reduce((a, b) => a + b.teams, 0)} teams rated.` : "—"],
+    ["Simulator", "#FFB547", `${games().filter((g) => g.pred).length} games × 10,000 sims on this phone.`],
+    ["Grader", "#45E0AE", m ? `${state.ledger.filter((r) => r.status === "graded").length} picks graded · ${state.ledger.filter((r) => r.clv).length} checked vs the close.` : "—"],
+    ["Coach", "#FF6F61", `${Object.keys(m?.lanes || {}).length} lanes calibrated; struggling ones are capped at Lean.`],
   ];
   return `<canvas id="hq-canvas" aria-label="EdgeBot operations floor, 3D"></canvas>
-    <p class="hq-hint">Drag to turn the floor. Tap a desk to see that sport’s picks. The core spins faster with more open picks (${open} now).</p>
-    <h2 class="sec"><span>The crew</span><span>${m ? "last run " + ago(m.lastRun) : ""}</span></h2>
-    <div class="agents">${agents.map(([n, c, t]) => `<div class="agent"><b><i style="background:${c}"></i>${n}</b><p>${esc(t)}</p></div>`).join("")}</div>
-    <h2 class="sec"><span>Activity</span></h2>
+    <p class="note">Drag to orbit · tap a desk to open that sport’s picks · the core spins faster with more open picks (${open} now).</p>
+    <h2 class="sec"><span>The crew</span><small>${m ? "last run " + ago(m.lastRun) : ""}</small></h2>
+    <div class="agents">${agents.map(([n, c, t]) => `<div class="agent"><b><i style="background:${c};color:${c}"></i>${n}</b><p>${esc(t)}</p></div>`).join("")}</div>
+    <h2 class="sec"><span>Activity</span><small>${m?.runs ?? 0} runs</small></h2>
     <div class="card"><ul class="feed">${state.runs.map((r) => `<li><time>${esc(new Date(r.at).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }))}</time>${esc((r.log || []).join(" "))}</li>`).join("") || `<li>No runs recorded yet.</li>`}</ul></div>`;
 }
 function loadingOrError() {
   if (state.error) return `<div class="card empty"><strong>Can’t load right now</strong>${esc(state.error)}</div>`;
-  return `<div class="card empty"><strong>Loading…</strong>Fetching picks and games.</div>`;
+  return `<div class="skel"></div><div class="skel" style="height:190px"></div><div class="skel" style="height:190px"></div>`;
 }
 
 /* ------------------------------ sheet ------------------------------ */
+function marginChart(g, p) {
+  const S = SP[g.sport], lo = Math.floor(p.margin - 2.6 * S.sdM), hi = Math.ceil(p.margin + 2.6 * S.sdM), bins = 34, w = (hi - lo) / bins;
+  const h = Array.from({ length: bins }, (_, i) => E.ncdf((lo + (i + 1) * w - p.margin) / S.sdM) - E.ncdf((lo + i * w - p.margin) / S.sdM)), mx = Math.max(...h);
+  const W = 340, H = 110, bw = W / bins, ca = liveColor(g.away), ch = liveColor(g.home), x0 = ((0 - lo) / (hi - lo)) * W;
+  return `<svg class="chart" viewBox="0 0 ${W} ${H + 18}" role="img" aria-label="Distribution of the final margin">
+    ${h.map((v, i) => { const mid = lo + (i + 0.5) * w, hh = (v / mx) * (H - 6); return `<rect x="${(i * bw + 1).toFixed(1)}" y="${(H - hh).toFixed(1)}" width="${(bw - 2).toFixed(1)}" height="${hh.toFixed(1)}" rx="2" fill="${mid > 0 ? ch : ca}" opacity="${mid > 0 ? 0.85 : 0.85}"/>`; }).join("")}
+    <line x1="${x0}" x2="${x0}" y1="0" y2="${H}" stroke="#EEF1F8" stroke-width="1.5" stroke-dasharray="3 3"/>
+    <text x="4" y="${H + 14}" fill="#8C98B4" font-size="11" font-family="JetBrains Mono">${esc(g.away.abbr)} by ${Math.abs(lo)}</text>
+    <text x="${x0}" y="${H + 14}" fill="#8C98B4" font-size="11" text-anchor="middle" font-family="JetBrains Mono">tie</text>
+    <text x="${W - 4}" y="${H + 14}" fill="#8C98B4" font-size="11" text-anchor="end" font-family="JetBrains Mono">${esc(g.home.abbr)} by ${hi}</text></svg>`;
+}
+function injuryBlock(g) {
+  const inj = g.injuries; if (!inj || !(inj.home?.length || inj.away?.length)) return "";
+  const col = (side) => `<div><b>${esc(g[side].short || g[side].abbr)}</b>${(inj[side] || []).slice(0, 6).map((p) => `<p><span>${esc(p.name)}${p.pos ? ` <small style="color:var(--dim)">${esc(p.pos)}</small>` : ""}</span><span>${esc(p.status === "DAY_TO_DAY" ? "DTD" : p.status.slice(0, 5))}</span></p>`).join("") || `<p style="color:var(--dim)">None reported</p>`}</div>`;
+  return `<h2 class="sec"><span>Injury report</span><small>ESPN</small></h2><div class="inj">${col("away")}${col("home")}</div>`;
+}
 function openGame(id) {
   const g = games().find((x) => x.id === id); if (!g) return;
-  const p = g.pred, s = g.status !== "post" ? sim(g) : null, pk = g.pick;
-  let distHtml = "";
-  if (s && p) {
-    const S = SP[g.sport], lo = Math.floor(p.margin - 2.5 * S.sdM), hi = Math.ceil(p.margin + 2.5 * S.sdM), bins = 30, w = (hi - lo) / bins;
-    const h = new Array(bins).fill(0), sd = S.sdM;
-    for (let i = 0; i < bins; i++) { const a = lo + i * w, b = a + w; h[i] = E.ncdf((b - p.margin) / sd) - E.ncdf((a - p.margin) / sd); }
-    const mx = Math.max(...h);
-    distHtml = `<h2 class="sec"><span>Home margin (${esc(g.home.abbr)} − ${esc(g.away.abbr)})</span></h2><div class="dist" aria-hidden="true">${h.map((v, i) => `<i class="${lo + i * w <= 0 && lo + (i + 1) * w > 0 ? "z" : ""}" style="height:${(100 * v / mx).toFixed(0)}%"></i>`).join("")}</div><div class="axis"><span>${lo}</span><span>0</span><span>+${hi}</span></div>`;
-  }
+  const p = g.pred, fin = g.status === "post", s = !fin && p ? sim(g) : null, pk = g.pick, ca = liveColor(g.away), ch = liveColor(g.home);
   const html = `<div class="sheet-bg" data-close="1"><div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(g.away.name)} at ${esc(g.home.name)}">
-    <div class="grab"></div><button class="close" data-close="1" aria-label="Close">✕</button>
-    <span class="note">${esc(sportLabel(g.sport))} · ${esc(when(g.start))}</span>
-    <h3>${esc(g.away.name)} @ ${esc(g.home.name)}</h3>
-    ${g.status === "post" ? `<p class="res">Final: ${esc(g.away.abbr)} ${g.away.score} – ${esc(g.home.abbr)} ${g.home.score}</p>` : ""}
-    ${pk ? `<p class="res"><span class="pill t-${pk.tier}">${pk.tier}</span> <b>${esc(pk.label)}</b> <span class="num">${am(pk.price)}</span> — EdgeBot ${pct1(pk.p)} vs ${pct1(pk.pMkt)} priced in · fair ${am(pk.fair)} · EV ${sgn(pk.ev * 100)}%</p>` : ""}
-    ${p ? `<div class="kv">
-      <div><span>Projected score</span><b>${esc(g.away.abbr)} ${s ? s.muA.toFixed(1) : "—"} – ${esc(g.home.abbr)} ${s ? s.muH.toFixed(1) : "—"}</b></div>
-      <div><span>${esc(g.home.abbr)} wins (simulated)</span><b>${pct1(s ? s.home : p.pHome)}</b></div>
-      <div><span>${esc(g.away.abbr)} wins (simulated)</span><b>${pct1(s ? s.away : p.pAway)}</b></div>
-      ${s && s.draw > 0.001 ? `<div><span>Draw</span><b>${pct1(s.draw)}</b></div>` : ""}
-      ${g.spread != null && s ? `<div><span>${esc(g.home.abbr)} ${g.spread > 0 ? "+" : ""}${g.spread} covers</span><b>${pct1(s.cover)}${s.push > 0.005 ? ` · push ${pct1(s.push)}` : ""}</b></div>` : ""}
-      ${g.total != null && s ? `<div><span>Over ${g.total}</span><b>${pct1(s.over)}</b></div>` : ""}
-      ${s ? `<div><span>Margin range (80%)</span><b>${s.range[0]} to ${s.range[2] > 0 ? "+" : ""}${s.range[2]}</b></div>` : ""}
-      ${s ? `<div><span>Most likely scores</span><b>${s.top.slice(0, 3).map((t) => t.s.split("-").reverse().join("–") + " " + pct1(t.p)).join(" · ")}</b></div>` : ""}
-    </div>${distHtml}` : `<p class="note">No line or ratings yet for this game, so EdgeBot isn’t projecting it.</p>`}
+    <div class="banner" style="--ca:${ca}55;--ch:${ch}55"><div class="grab"></div><button class="close" data-close="1" aria-label="Close">✕</button>
+      <div class="note" style="text-align:center;margin:0">${esc(sportLabel(g.sport))} · ${esc(dayLabel(g.start))} ${esc(timeOf(g.start))}${g.detail && !/^\d/.test(g.detail) && g.status !== "pre" ? ` · ${esc(g.detail)}` : ""}</div>
+      <div class="vs"><div class="t">${mark(g.away, g.sport, true)}<b>${esc(g.away.short || g.away.name)}</b><small>${esc(g.away.record || "away")}</small></div>
+        <div class="mid">${fin ? `<big class="num">${g.away.score}–${g.home.score}</big>Final` : s ? `<big class="num">${Math.round(s.muA)}–${Math.round(s.muH)}</big>projected` : "vs"}</div>
+        <div class="t">${mark(g.home, g.sport, true)}<b>${esc(g.home.short || g.home.name)}</b><small>${esc(g.home.record || "home")}</small></div></div>
+    </div>
+    <div class="sheet-body">
+    ${pk ? `<div class="callout"><span class="tier t-${pk.tier}">${pk.tier}</span> <b>${esc(pk.label)}</b> <span class="num">${am(pk.price)}</span><br><span style="color:#C9D1E4">EdgeBot ${pct1(pk.p)} vs ${pct1(pk.pMkt)} priced in · fair ${am(pk.fair)} · EV ${sgn(pk.ev * 100)}%</span>${pk.note ? `<br><small style="color:var(--muted)">${esc(pk.note)}</small>` : ""}</div>` : ""}
+    ${p && !fin ? `<div class="probbar">${winBar(g, s ? s.away : p.pAway, s ? s.home : p.pHome, s ? s.draw : p.pDraw)}<div class="lbl"><span style="color:${ca}">${esc(g.away.abbr)} ${pct1(s ? s.away : p.pAway)}</span>${(s ? s.draw : p.pDraw) > 0.01 ? `<span>Draw ${pct1(s ? s.draw : p.pDraw)}</span>` : ""}<span style="color:${ch}">${pct1(s ? s.home : p.pHome)} ${esc(g.home.abbr)}</span></div></div>
+      <div class="tiles">
+        ${g.spread != null && s ? `<div class="tile"><span>${esc(g.home.abbr)} ${g.spread > 0 ? "+" : ""}${g.spread} covers</span><b>${pct1(s.cover / (1 - s.push))}</b><small>${s.push > 0.005 ? `push ${pct1(s.push)}` : "spread"}</small></div>` : ""}
+        ${g.total != null && s ? `<div class="tile"><span>Over ${g.total}</span><b>${pct1(s.over / (s.over + s.under))}</b><small>projected ${p.total.toFixed(1)}</small></div>` : ""}
+        ${s ? `<div class="tile"><span>Likely margin</span><b>${s.range[0] > 0 ? "+" : ""}${s.range[0]} to ${s.range[2] > 0 ? "+" : ""}${s.range[2]}</b><small>80% of sims, home view</small></div>` : ""}
+        ${s ? `<div class="tile"><span>Top score</span><b>${esc(s.top[0].s.split("-").reverse().join("–"))}</b><small>${pct1(s.top[0].p)} of sims</small></div>` : ""}
+      </div>
+      ${marginChart(g, p)}` : fin ? "" : `<p class="note">No line or ratings yet, so EdgeBot isn’t projecting this one.</p>`}
     ${contextChips(g).length ? `<div class="ctx">${contextChips(g).map((x) => `<span>${esc(x)}</span>`).join("")}</div>` : ""}
-    <h2 class="sec"><span>Why</span></h2><ul class="why">${(g.why || []).map((x) => `<li>${esc(x)}</li>`).join("")}</ul>
-    ${p && g.status !== "post" ? `<h2 class="sec"><span>Check your own line</span></h2>
+    <h2 class="sec"><span>Why</span></h2><ul class="why">${(g.why || []).filter((x) => !/injuries:/.test(x)).map((x) => `<li>${esc(x)}</li>`).join("")}</ul>
+    ${injuryBlock(g)}
+    ${p && !fin ? `<h2 class="sec"><span>Check your own line</span></h2>
       <div class="check"><label for="ck-spread">${esc(g.home.abbr)} spread<input id="ck-spread" inputmode="decimal" value="${g.spread ?? ""}" placeholder="-3.5"></label>
       <label for="ck-total">Total<input id="ck-total" inputmode="decimal" value="${g.total ?? ""}" placeholder="220.5"></label>
       <label for="ck-price">Odds<input id="ck-price" inputmode="numeric" value="-110"></label></div>
       <div class="res" id="ck-out" aria-live="polite"></div>` : ""}
+    </div>
   </div></div>`;
   $("#sheet-root").innerHTML = html;
+  document.body.style.overflow = "hidden";
   const out = $("#ck-out");
   if (out) {
     const calc = () => {
       const sp = parseFloat($("#ck-spread").value), tot = parseFloat($("#ck-total").value), pr = parseFloat($("#ck-price").value);
-      const g2 = { ...g, spread: isFinite(sp) ? sp : null, total: isFinite(tot) ? tot : null }, s2 = E.simulate(g2, p, 10000), dec = E.toDec(isFinite(pr) ? pr : -110);
+      const g2 = { ...g, spread: isFinite(sp) ? sp : null, total: isFinite(tot) ? tot : null }, s2 = E.simulate(g2, { ...p }, 10000), dec = E.toDec(isFinite(pr) ? pr : -110);
       const rows = [];
-      if (s2.cover != null) { const c = s2.cover / (1 - s2.push), a = 1 - c; rows.push(`${esc(g.home.abbr)} ${sp > 0 ? "+" : ""}${sp}: <b>${pct1(c)}</b> (EV ${sgn((c * dec - 1) * 100)}%) · ${esc(g.away.abbr)} ${-sp > 0 ? "+" : ""}${-sp}: <b>${pct1(a)}</b> (EV ${sgn((a * dec - 1) * 100)}%)`); }
-      if (s2.over != null) { const n = s2.over + s2.under, o = s2.over / n; rows.push(`Over ${tot}: <b>${pct1(o)}</b> (EV ${sgn((o * dec - 1) * 100)}%) · Under: <b>${pct1(1 - o)}</b> (EV ${sgn(((1 - o) * dec - 1) * 100)}%)`); }
-      out.innerHTML = rows.join("<br>") + `<br><span class="note">Same 10,000-game simulation, pushes excluded. Positive EV only means the price beats EdgeBot’s estimate.</span>`;
+      if (s2.cover != null) { const c = s2.cover / (1 - s2.push), a = 1 - c; rows.push(`${esc(g.home.abbr)} ${sp > 0 ? "+" : ""}${sp}: <b>${pct1(c)}</b> <span class="${c * dec - 1 > 0 ? "good" : "bad"}">EV ${sgn((c * dec - 1) * 100)}%</span> · ${esc(g.away.abbr)} ${-sp > 0 ? "+" : ""}${-sp}: <b>${pct1(a)}</b> <span class="${a * dec - 1 > 0 ? "good" : "bad"}">EV ${sgn((a * dec - 1) * 100)}%</span>`); }
+      if (s2.over != null) { const n = s2.over + s2.under, o = s2.over / n; rows.push(`Over ${tot}: <b>${pct1(o)}</b> <span class="${o * dec - 1 > 0 ? "good" : "bad"}">EV ${sgn((o * dec - 1) * 100)}%</span> · Under: <b>${pct1(1 - o)}</b> <span class="${(1 - o) * dec - 1 > 0 ? "good" : "bad"}">EV ${sgn(((1 - o) * dec - 1) * 100)}%</span>`); }
+      out.innerHTML = (rows.join("<br>") || "Enter a spread or total.") + `<br><small style="color:var(--muted)">Same 10,000-game simulation, pushes excluded. Positive EV only means the price beats EdgeBot’s estimate.</small>`;
     };
     ["#ck-spread", "#ck-total", "#ck-price"].forEach((s) => $(s).addEventListener("input", calc)); calc();
   }
 }
+function closeSheet() { $("#sheet-root").innerHTML = ""; document.body.style.overflow = ""; }
 
 /* ------------------------------ render ------------------------------ */
 function setTabs() { document.querySelectorAll("nav.tabs button").forEach((b) => b.dataset.tab === state.tab ? b.setAttribute("aria-current", "page") : b.removeAttribute("aria-current")); }
 function render() {
-  const m = state.model, fresh = m?.lastRun && Date.now() - Date.parse(m.lastRun) < 8 * 3600e3;
+  const m = state.model, fresh = m?.lastRun && Date.now() - Date.parse(m.lastRun) < 4 * 3600e3;
   $("#dot").className = "dot " + (fresh ? "ok" : m ? "warn" : "");
-  $("#status").textContent = m ? `Updated ${ago(m.lastRun)} · ${m.runs} runs` : state.slate ? "Waiting for first run" : "Connecting…";
+  $("#status").textContent = m ? `Updated ${ago(m.lastRun)}` : state.slate ? "Waiting for first run" : "Connecting…";
+  $("#today").textContent = m ? `${(Object.values(m.archive || {}).reduce((a, b) => a + b, 0)).toLocaleString()} finals learned · ${m.runs} runs` : "Sports picks that learn";
   const views = { picks: viewPicks, games: viewGames, record: viewRecord, hq: viewHQ };
   const hadCanvas = $("#hq-canvas");
   if (state.tab === "hq" && hadCanvas && hq.ready) {
-    // keep the live canvas; refresh the panels around it
     const tmp = document.createElement("div"); tmp.innerHTML = viewHQ(); tmp.querySelector("#hq-canvas").replaceWith(hadCanvas);
     $("#view").replaceChildren(...tmp.childNodes); hq.update(); return;
   }
@@ -409,26 +569,33 @@ document.addEventListener("click", (e) => {
   if (t.dataset.tab) { state.tab = t.dataset.tab; setTabs(); window.scrollTo({ top: 0 }); render(); return; }
   if (t.dataset.sport || t.dataset.sport2) { state.sport = t.dataset.sport || t.dataset.sport2; render(); return; }
   if (t.dataset.day) { state.day = t.dataset.day; render(); return; }
+  if (t.dataset.when) { state.when = t.dataset.when; render(); return; }
   if (t.dataset.save) { const id = t.dataset.save; state.saved = state.saved.includes(id) ? state.saved.filter((x) => x !== id) : [...state.saved, id]; saveSaved(); render(); return; }
   if (t.dataset.game) { openGame(t.dataset.game); return; }
-  if (t.dataset.close && (e.target === t || t.classList.contains("close"))) { $("#sheet-root").innerHTML = ""; }
+  if (t.dataset.close && (e.target === t || t.classList.contains("close"))) closeSheet();
 });
-document.addEventListener("keydown", (e) => { if (e.key === "Escape") $("#sheet-root").innerHTML = ""; });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeSheet(); });
 
 /* ------------------------------ 3D HQ ------------------------------ */
 const hq = (() => {
-  let renderer, scene, camera, raf = 0, core, desks = [], bots = [], canvas, angle = 0.6, drag = null, tilt = 0.5, ready = false, last = 0;
+  let renderer, scene, camera, raf = 0, core, coreGlow, desks = [], bots = [], pulses = [], canvas, angle = 0.6, drag = null, tilt = 0.5, ready = false, last = 0;
   const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const COLORS = { NBA: 0xff8a3d, NFL: 0x47dfae, NCAAF: 0x8f80ff, NHL: 0x5cc8ff, MLB: 0xff6f61, EPL: 0xffd166 };
   function screenTex(label, n, color) {
     const c = document.createElement("canvas"); c.width = 256; c.height = 160; const x = c.getContext("2d");
-    x.fillStyle = "#0b1020"; x.fillRect(0, 0, 256, 160); x.fillStyle = "#" + color.toString(16).padStart(6, "0");
+    const grd = x.createLinearGradient(0, 0, 0, 160); grd.addColorStop(0, "#131c33"); grd.addColorStop(1, "#090d1a"); x.fillStyle = grd; x.fillRect(0, 0, 256, 160);
+    x.fillStyle = "#" + color.toString(16).padStart(6, "0"); x.fillRect(0, 0, 256, 6); x.fillStyle = "#" + color.toString(16).padStart(6, "0");
     x.font = "700 30px sans-serif"; x.fillText(label, 16, 44); x.font = "700 64px monospace"; x.fillText(String(n), 16, 120);
     x.font = "500 20px sans-serif"; x.fillStyle = "#8f9bb7"; x.fillText(n === 1 ? "pick" : "picks", 16 + 40 * String(n).length + 8, 118);
     const t = new THREE.CanvasTexture(c); return t;
   }
   function build() {
-    scene = new THREE.Scene(); scene.fog = new THREE.Fog(0x0b1020, 14, 30);
+    scene = new THREE.Scene(); scene.fog = new THREE.Fog(0x090d1a, 15, 34);
+    // starfield
+    const sg = new THREE.BufferGeometry(), sp = new Float32Array(900);
+    for (let i = 0; i < 300; i++) { const r = 18 + Math.random() * 10, th = Math.random() * Math.PI * 2, ph = Math.random() * Math.PI * 0.45; sp.set([r * Math.cos(th) * Math.sin(ph), 2 + r * Math.cos(ph), r * Math.sin(th) * Math.sin(ph)], i * 3); }
+    sg.setAttribute("position", new THREE.BufferAttribute(sp, 3));
+    scene.add(new THREE.Points(sg, new THREE.PointsMaterial({ color: 0x9fb4ff, size: 0.08, transparent: true, opacity: 0.7 })));
     camera = new THREE.PerspectiveCamera(45, 4 / 3, 0.1, 100);
     scene.add(new THREE.HemisphereLight(0x9fb4ff, 0x0b1020, 0.7));
     const key = new THREE.PointLight(0xffb547, 1.4, 20); key.position.set(0, 4, 0); scene.add(key);
@@ -436,6 +603,8 @@ const hq = (() => {
     const grid = new THREE.PolarGridHelper(9, 12, 6, 64, 0x24314f, 0x1a2440); scene.add(grid);
     core = new THREE.Mesh(new THREE.IcosahedronGeometry(0.9, 1), new THREE.MeshStandardMaterial({ color: 0xffb547, emissive: 0xffb547, emissiveIntensity: 0.6, wireframe: true }));
     core.position.y = 1.6; scene.add(core);
+    coreGlow = new THREE.Mesh(new THREE.SphereGeometry(0.55, 24, 16), new THREE.MeshBasicMaterial({ color: 0xffcf85, transparent: true, opacity: 0.55 })); coreGlow.position.y = 1.6; scene.add(coreGlow);
+    const halo = new THREE.Mesh(new THREE.RingGeometry(1.15, 1.3, 64), new THREE.MeshBasicMaterial({ color: 0xffb547, transparent: true, opacity: 0.25, side: THREE.DoubleSide })); halo.rotation.x = -Math.PI / 2; halo.position.y = 0.02; scene.add(halo);
     const ring = new THREE.Mesh(new THREE.TorusGeometry(1.4, 0.03, 8, 64), new THREE.MeshBasicMaterial({ color: 0x47dfae })); ring.rotation.x = Math.PI / 2; ring.position.y = 0.4; scene.add(ring);
     const sports = Object.keys(SP);
     sports.forEach((s, i) => {
@@ -448,7 +617,14 @@ const hq = (() => {
       const monIn = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1), mat); monIn.position.set(0, 1.55, -0.175); grp.add(monIn);
       const monOut = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1), mat); monOut.position.set(0, 1.55, -0.225); monOut.rotation.y = Math.PI; grp.add(monOut);
       for (const o of [desk, top, frame, monIn, monOut]) o.userData.sport = s;
-      scene.add(grp); desks.push({ s, grp, mon: monIn, color: COLORS[s], n: -1 });
+      scene.add(grp);
+      // data beam from the core to this desk (lit when the desk has picks)
+      const to = new THREE.Vector3(Math.cos(a) * (r - 0.6), 1.0, Math.sin(a) * (r - 0.6)), from = new THREE.Vector3(0, 1.6, 0);
+      const beam = new THREE.Line(new THREE.BufferGeometry().setFromPoints([from, to]), new THREE.LineBasicMaterial({ color: COLORS[s], transparent: true, opacity: 0.08 }));
+      scene.add(beam);
+      const pulse = new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 8), new THREE.MeshBasicMaterial({ color: COLORS[s] })); pulse.visible = false; scene.add(pulse);
+      pulses.push({ mesh: pulse, from, to, t: Math.random() });
+      desks.push({ s, grp, mon: monIn, color: COLORS[s], n: -1, beam, top });
     });
     const names = [["Scout", 0x5cc8ff], ["Quant", 0x8f80ff], ["Simulator", 0xffb547], ["Grader", 0x47dfae], ["Coach", 0xff6f61]];
     names.forEach(([n, c], i) => {
@@ -464,7 +640,8 @@ const hq = (() => {
   function update() {
     if (!ready) return;
     const counts = {}; for (const x of currentPicks()) counts[x.g.sport] = (counts[x.g.sport] || 0) + 1;
-    for (const d of desks) { const n = counts[d.s] || 0; if (n !== d.n) { d.n = n; d.mon.material.map?.dispose(); d.mon.material.map = screenTex(SP[d.s].label, n, d.color); d.mon.material.needsUpdate = true; } }
+    desks.forEach((d, i) => { const n = counts[d.s] || 0; if (n !== d.n) { d.n = n; d.mon.material.map?.dispose(); d.mon.material.map = screenTex(SP[d.s].label, n, d.color); d.mon.material.needsUpdate = true; }
+      d.beam.material.opacity = n ? 0.55 : 0.08; d.top.material.emissiveIntensity = n ? 0.6 : 0.15; pulses[i].mesh.visible = n > 0; pulses[i].speed = 0.25 + 0.06 * Math.min(n, 10); });
   }
   function resize() {
     const w = canvas.clientWidth, h = canvas.clientHeight; if (!w || !h) return;
@@ -473,7 +650,9 @@ const hq = (() => {
   function frame(t) {
     raf = requestAnimationFrame(frame); const dt = Math.min(0.05, (t - last) / 1000 || 0); last = t;
     const open = currentPicks().length;
-    if (!reduce) { core.rotation.y += dt * (0.4 + 0.15 * Math.min(open, 20)); core.rotation.x += dt * 0.2; if (!drag) angle += dt * 0.05; }
+    if (!reduce) { core.rotation.y += dt * (0.4 + 0.15 * Math.min(open, 20)); core.rotation.x += dt * 0.2; if (!drag) angle += dt * 0.05;
+      coreGlow.scale.setScalar(1 + 0.08 * Math.sin(t / 400));
+      for (const p of pulses) if (p.mesh.visible) { p.t = (p.t + dt * (p.speed || 0.3)) % 1; p.mesh.position.lerpVectors(p.from, p.to, p.t); } }
     camera.position.set(Math.cos(angle) * 12, 4 + tilt * 6, Math.sin(angle) * 12); camera.lookAt(0, 0.8, 0);
     for (const b of bots) {
       if (!reduce) b.t += dt * b.speed;
@@ -512,6 +691,5 @@ if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catc
 setInterval(() => { if (!document.hidden) render(); }, 60000);
 })();
 </script>
-
 </body>
 </html>
