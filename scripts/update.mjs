@@ -92,11 +92,12 @@ async function polymarket(sport) {
       const ml = mk.find((m) => m.sportsMarketType === "moneyline") || (mk.length === 1 ? mk[0] : null); if (!ml) continue;
       const parse = (x) => { try { return JSON.parse(x); } catch { return null; } };
       const outs = parse(ml.outcomes), px = (parse(ml.outcomePrices) || []).map(Number); if (!outs || outs.length < 2) continue;
-      const sp = mk.find((m) => m.sportsMarketType === "spreads"), tot = mk.find((m) => m.sportsMarketType === "totals");
+      const full = (m) => !/1h|2h|half|quarter|q[1-4]|period|inning|team total|first|1st/i.test(`${m.question} ${m.groupItemTitle || ""} ${m.slug || ""}`);
+      const sps = mk.filter((m) => m.sportsMarketType === "spreads" && full(m)), tots = mk.filter((m) => m.sportsMarketType === "totals" && full(m));
       out.push({ start: e.startTime || ml.gameStartTime?.replace(" ", "T").replace("+00", "Z") || e.endDate, title: e.title, slug: e.slug, vol: +e.volume || 0, vol24: +e.volume24hr || 0,
         outcomes: outs, prices: px, mlVol: +ml.volumeNum || 0,
-        spread: sp ? { q: sp.question, line: +sp.line, outcomes: parse(sp.outcomes), prices: (parse(sp.outcomePrices) || []).map(Number), vol: +sp.volumeNum || 0 } : null,
-        total: tot ? { line: +tot.line, over: +(parse(tot.outcomePrices) || [])[0], vol: +tot.volumeNum || 0 } : null });
+        spreads: sps.map((sp) => ({ q: sp.question, line: +sp.line, outcomes: parse(sp.outcomes), prices: (parse(sp.outcomePrices) || []).map(Number), vol: +sp.volumeNum || 0 })),
+        totals: tots.map((tot) => ({ line: +tot.line, over: +(parse(tot.outcomePrices) || [])[0], vol: +tot.volumeNum || 0 })) });
     }
     if (ev.length < 100) break;
   }
@@ -124,9 +125,13 @@ function attachCrowd(gameList, pm, ks) {
     const e = pm.find((x) => Math.abs(Date.parse(x.start) - t0) < 3 * 3600e3 && x.outcomes.some((o) => sameTeam(o, g.home)) && x.outcomes.some((o) => sameTeam(o, g.away)));
     if (e) {
       const hi = e.outcomes.findIndex((o) => sameTeam(o, g.home)), ai = e.outcomes.findIndex((o) => sameTeam(o, g.away)), di = e.outcomes.findIndex((o) => /draw|tie/i.test(o));
+      // full-game spread/total closest to the sportsbook line (Polymarket also lists halves and alternate lines)
+      const closest = (arr, target, key) => arr.filter((x) => isFinite(x[key])).sort((a, b) => (target != null ? Math.abs(Math.abs(a[key]) - Math.abs(target)) - Math.abs(Math.abs(b[key]) - Math.abs(target)) : 0) || b.vol - a.vol)[0];
+      const sp = closest(e.spreads.filter((x) => x.outcomes), g.spread, "line"), tot = closest(e.totals, g.total, "line");
+      const spOk = sp && (g.spread == null || Math.abs(Math.abs(sp.line) - Math.abs(g.spread)) <= 3), totOk = tot && isFinite(tot.over) && (g.total == null || Math.abs(tot.line - g.total) <= Math.max(3, 0.08 * g.total));
       crowd.pm = { home: e.prices[hi], away: e.prices[ai], draw: di >= 0 ? e.prices[di] : null, vol: Math.round(e.vol), vol24: Math.round(e.vol24), mlVol: Math.round(e.mlVol), slug: e.slug,
-        spread: e.spread && e.spread.outcomes ? { label: e.spread.q, line: e.spread.line, fav: e.spread.outcomes[0], favP: e.spread.prices[0], vol: Math.round(e.spread.vol) } : null,
-        total: e.total && isFinite(e.total.over) ? { line: e.total.line, over: e.total.over, vol: Math.round(e.total.vol) } : null };
+        spread: spOk ? { label: `${sp.outcomes[0]} ${sp.line > 0 ? "+" : ""}${sp.line}`, line: sp.line, fav: sp.outcomes[0], favP: sp.prices[0], vol: Math.round(sp.vol) } : null,
+        total: totOk ? { line: tot.line, over: tot.over, vol: Math.round(tot.vol) } : null };
     }
     const day = etDate(t0), k = ks.find((x) => x.sides.some((s) => sameTeam(s.team, g.home)) && x.sides.some((s) => sameTeam(s.team, g.away)) && x.sides.some((s) => s.when && Math.abs(Date.parse(s.when) - t0) < 36 * 3600e3));
     if (k) {
