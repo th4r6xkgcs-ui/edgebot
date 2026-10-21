@@ -435,6 +435,18 @@ async function ownerCheck() {
   if (hex === OWNER_HASH) { try { localStorage.setItem("edgebot-owner", hex); } catch {} isOwner = true; history.replaceState(null, "", location.pathname); applyOwner(); render(); toast("Owner mode on — records visible on this device"); }
 }
 ownerCheck(); addEventListener("hashchange", ownerCheck);
+// hidden in-app unlock (home-screen apps on iPhone don't share Safari's storage): tap the logo 5 times quickly
+let brandTaps = [];
+document.querySelector(".brand")?.addEventListener("click", () => {
+  const t = Date.now(); brandTaps = [...brandTaps.filter((x) => t - x < 2500), t]; if (brandTaps.length < 5) return; brandTaps = [];
+  if (isOwner) { toast("Owner mode is already on for this device"); return; }
+  sheetShow(`<div style="padding:8px 4px 20px"><h2 class="sec"><span>Owner unlock</span></h2><p class="muted" style="margin:6px 0 12px">Enter your owner code to show records on this device.</p>
+    <input id="ownerCode" autocomplete="off" autocapitalize="off" spellcheck="false" style="width:100%;padding:12px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--fg);font-size:16px">
+    <button id="ownerGo" style="margin-top:12px;width:100%;padding:12px;border-radius:12px;border:0;background:var(--fg);color:var(--bg);font-weight:800">Unlock</button></div>`);
+  setTimeout(() => { const i = $("#ownerCode"); i?.focus(); $("#ownerGo")?.addEventListener("click", async () => {
+    const v = i.value.trim().replace(/^.*#owner-/, ""); history.replaceState(null, "", location.pathname + "#owner-" + v); await ownerCheck();
+    if (isOwner) $(".sheet .close")?.click(); else { history.replaceState(null, "", location.pathname); toast("That code didn't match"); } }); }, 50);
+});
 function applyOwner() { const b = document.querySelector('nav.tabs [data-tab="record"]'); if (b) b.hidden = !isOwner; document.querySelector("nav.tabs").style.gridTemplateColumns = `repeat(${isOwner ? 5 : 4},1fr)`; if (!isOwner && state.tab === "record") state.tab = "picks"; }
 
 /* ------------------------------ data ------------------------------ */
