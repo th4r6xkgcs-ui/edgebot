@@ -303,6 +303,31 @@ table.lanes th.n{text-align:right}
 .gauge{height:10px;border-radius:6px;background:var(--panel2);overflow:hidden;margin-top:12px}
 .gauge i{display:block;height:100%;background:linear-gradient(90deg,#FF6F61,#FFB547,#45E0AE)}
 #confetti{position:fixed;inset:0;pointer-events:none;z-index:80}
+.iconbtn{width:42px;height:42px;border-radius:14px;border:1px solid var(--line);background:rgba(17,26,47,.7);display:grid;place-items:center;color:var(--fg)}
+.back{position:absolute;left:max(14px,env(safe-area-inset-left,0px));top:12px;border:0;background:rgba(9,13,26,.6);border-radius:999px;height:38px;padding:0 14px;font-weight:700;z-index:2}
+.res-group h4{margin:16px 2px 6px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+.hit{display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:12px;align-items:center;width:100%;text-align:left;background:transparent;border:0;border-top:1px solid var(--line);padding:10px 4px}
+.hit:first-child{border-top:0}
+.hit img,.hit .tmono,.hit .tlogo{width:44px;height:44px;border-radius:50%;object-fit:cover;background:var(--panel2)}
+.hit .tmono{font-size:11px}
+.hit b{display:block;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hit small{color:var(--muted);font-size:12.5px}
+.hit .r{font:600 12px var(--mono);color:var(--muted);text-align:right}
+.big-search{width:100%;background:var(--panel);border:1px solid var(--line2);border-radius:16px;padding:14px 16px;color:var(--fg);font:600 17px var(--body)}
+.tlink{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:6px;border-radius:10px}
+.tlink:focus-visible{outline:2px solid var(--amber)}
+.vs .t{all:unset;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;min-width:0;border-radius:16px;padding:4px}
+.vs .t:active{transform:scale(.97)}
+.headbig{width:96px;height:96px;border-radius:50%;object-fit:cover;background:var(--panel2);border:3px solid var(--tc,#2C3B5E);box-shadow:0 10px 30px rgba(0,0,0,.4)}
+.ptable{width:100%;border-collapse:collapse;font-size:13px}
+.ptable th{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);font-weight:700;padding:8px 6px;text-align:right}
+.ptable th:first-child,.ptable td:first-child{text-align:left}
+.ptable td{padding:8px 6px;border-top:1px solid var(--line);text-align:right;font-family:var(--mono);white-space:nowrap}
+.wl{display:flex;gap:5px;flex-wrap:wrap;margin-top:10px}
+.wl span{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;font:800 12px var(--mono)}
+.wl .W{background:rgba(69,224,174,.18);color:var(--mint)}.wl .L{background:rgba(255,111,97,.16);color:var(--coral)}.wl .T{background:var(--panel2);color:var(--muted)}
+.prow{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:10px;align-items:center;padding:10px 0;border-top:1px solid var(--line);font-size:14px}
+.prow:first-child{border-top:0}
 details.how{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-md);padding:2px 14px;margin-bottom:10px}
 details.how summary{cursor:pointer;padding:12px 0;font-weight:700;list-style:none;display:flex;justify-content:space-between}
 details.how summary::after{content:"+";color:var(--muted);font-weight:500}
@@ -320,7 +345,8 @@ details.how ol{padding-left:18px;margin:0 0 12px}
       <svg class="logo" viewBox="0 0 40 40" aria-hidden="true"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1B2647"/><stop offset="1" stop-color="#111A2F"/></linearGradient></defs><rect x="1" y="1" width="38" height="38" rx="12" fill="url(#lg)" stroke="#2C3B5E"/><path d="M9 27 L16 20 L21 24 L31 12" fill="none" stroke="#FFB547" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="31" cy="12" r="3.4" fill="#45E0AE"/></svg>
       <div><h1>Edge<i>Bot</i></h1><small id="today"></small></div>
     </div>
-    <span class="live"><span class="dot" id="dot"></span><span id="status">Connecting…</span></span>
+    <span style="display:flex;align-items:center;gap:8px"><span class="live"><span class="dot" id="dot"></span><span id="status">Connecting…</span></span>
+      <button class="iconbtn" data-search="1" aria-label="Search teams, players and games"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg></button></span>
   </header>
   <main id="view"></main>
   <p class="disclaimer">Research picks with a tracked, public record. EdgeBot never places bets and nothing here is a guarantee. Bet only what you can afford to lose.</p>
@@ -618,9 +644,9 @@ function viewPower(groups) {
   return `${gamesSeg(groups)}<div class="chips" role="group" aria-label="League">${sports.map((s) => `<button class="chip" data-sport2="${s}" aria-pressed="${s === sp}"><i style="width:7px;height:7px;border-radius:50%;background:${SPORT_DOT[s]}"></i>${esc(sportLabel(s))}</button>`).join("")}</div>
     <h2 class="sec"><span>${esc(sportLabel(sp))} power ratings</span><small>${S.dist === "normal" ? "points" : "goals/runs"} vs an average team, neutral field</small></h2>
     <div class="card">${list.map((t, i) => { const tm = teamIndex.get(`${sp}|${t.abbr}`) || { abbr: t.abbr }, w = (Math.abs(t.r) / max) * 50;
-      return `<div class="power"><span class="rk">${i + 1}</span><span class="nm">${mark(tm, sp)}<span>${esc(tm.short || tm.name || t.abbr)}<small>${esc(tm.record || `${t.n} gp`)}</small></span></span>
+      return `<button class="power" data-team="${sp}|${esc(t.abbr)}" style="width:100%;background:transparent;border-left:0;border-right:0;border-bottom:0;text-align:left;color:inherit"><span class="rk">${i + 1}</span><span class="nm">${mark(tm, sp)}<span>${esc(tm.short || tm.name || t.abbr)}<small>${esc(tm.record || `${t.n} gp`)}</small></span></span>
         <span class="bar3"><i style="left:${t.r >= 0 ? 50 : 50 - w}%;width:${w}%;background:${t.r >= 0 ? "var(--mint)" : "var(--coral)"}"></i><i style="left:50%;width:1px;background:var(--line2)"></i></span>
-        <span class="val ${t.r >= 0 ? "good" : "bad"}">${sgn(t.r, S.dist === "normal" ? 1 : 2)}</span></div>`; }).join("")}</div>
+        <span class="val ${t.r >= 0 ? "good" : "bad"}">${sgn(t.r, S.dist === "normal" ? 1 : 2)}</span></button>`; }).join("")}</div>
     <p class="note">Built from every verified final this season (last season carried in at 70%). Games vs these ratings are blended with the betting line — see Record → What EdgeBot has learned.</p>`;
 }
 function spark(rows) {
@@ -722,6 +748,100 @@ function openSlip() {
   document.body.style.overflow = "hidden";
 }
 
+/* ------------------------------ profiles (lazy) ------------------------------ */
+let profiles = null, profilesLoading = null;
+function loadProfiles() {
+  if (profiles) return Promise.resolve(profiles);
+  return profilesLoading ||= fetch(DATA_URL.replace("app.json", "profiles.json") + "?t=" + Math.floor(Date.now() / 600000)).then((r) => r.ok ? r.json() : null).then((d) => {
+    profiles = d || { players: [], teams: [] };
+    for (const t of profiles.teams) teamIndex.set(`${t.sport}|${t.abbr}`, { ...(teamIndex.get(`${t.sport}|${t.abbr}`) || {}), ...t });
+    return profiles;
+  }).catch(() => (profiles = { players: [], teams: [] }));
+}
+const findTeam = (sp, abbr) => profiles?.teams.find((t) => t.sport === sp && t.abbr === abbr);
+const findPlayer = (sp, id) => profiles?.players.find((p) => p.sport === sp && String(p.id) === String(id));
+
+/* ------------------------------ sheet stack (back button) ------------------------------ */
+let sheetStack = [];
+function sheetShow(html, reopen, after) {
+  if (reopen) sheetStack.push(reopen);
+  const back = sheetStack.length > 1 ? `<button class="back" data-back="1" aria-label="Back">‹ Back</button>` : "";
+  $("#sheet-root").innerHTML = html.replace('<div class="grab"></div>', `<div class="grab"></div>${back}`);
+  document.body.style.overflow = "hidden"; after && after();
+}
+function sheetBack() { sheetStack.pop(); const prev = sheetStack.pop(); if (prev) prev(); else closeSheet(); }
+const loadingSheet = (label) => sheetShow(`<div class="sheet-bg" data-close="1"><div class="sheet"><div class="banner" style="--ca:#2C3B5E55;--ch:#2C3B5E55"><div class="grab"></div><button class="close" data-close="1" aria-label="Close">✕</button><div class="vs" style="grid-template-columns:1fr"><div class="t" style="cursor:default"><b>${esc(label)}</b><small>Loading…</small></div></div></div><div class="sheet-body"><div class="skel"></div></div></div></div>`);
+
+/* ------------------------------ search ------------------------------ */
+function openSearch() {
+  sheetShow(`<div class="sheet-bg" data-close="1"><div class="sheet" role="dialog" aria-modal="true" aria-label="Search"><div class="banner" style="--ca:#8F80FF44;--ch:#FFB54744"><div class="grab"></div><button class="close" data-close="1" aria-label="Close">✕</button>
+    <input class="big-search" id="gsearch" type="search" placeholder="Search teams, players, games" autocomplete="off" value="${esc(state.gq || "")}" aria-label="Search"></div>
+    <div class="sheet-body" id="gresults"><p class="note">Try “Chiefs”, “LeBron”, “Knicks” or “NFL”.</p></div></div></div>`, () => openSearch(), () => { const el = $("#gsearch"); el.focus(); runSearch(); });
+  loadProfiles().then(runSearch);
+}
+function runSearch() {
+  const box = $("#gresults"), q = norm(($("#gsearch")?.value || "").trim()); if (!box) return;
+  state.gq = $("#gsearch")?.value || "";
+  if (!q) { box.innerHTML = `<p class="note">Try “Chiefs”, “LeBron”, “Knicks” or “NFL”.</p>`; return; }
+  if (!profiles) { box.innerHTML = `<div class="skel" style="height:80px"></div>`; return; }
+  const score = (txt) => { const t = norm(txt); return t === q ? 3 : t.startsWith(q) ? 2 : t.includes(q) ? 1 : t.split(" ").some((w) => w.startsWith(q)) ? 1 : 0; };
+  const teams = profiles.teams.map((t) => ({ t, s: Math.max(score(t.name), score(t.short), score(t.abbr), q === norm(t.sport) ? 1 : 0) })).filter((x) => x.s).sort((a, b) => b.s - a.s || (a.t.rank || 999) - (b.t.rank || 999)).slice(0, 8);
+  const players = profiles.players.map((p) => ({ p, s: Math.max(score(p.name), score(p.team) ? 0.5 : 0) })).filter((x) => x.s).sort((a, b) => b.s - a.s || ((b.p.cur?.gp || 0) - (a.p.cur?.gp || 0))).slice(0, 12);
+  const gms = games().filter((g) => g.status !== "post" && [g.home.name, g.away.name, g.home.abbr, g.away.abbr].some((n) => score(n))).slice(0, 6);
+  box.innerHTML = (teams.length ? `<div class="res-group"><h4>Teams</h4><div class="card" style="padding:0 12px">${teams.map(({ t }) => `<button class="hit" data-team="${t.sport}|${esc(t.abbr)}">${mark(t, t.sport)}<span style="min-width:0"><b>${esc(t.name)}</b><small>${esc(sportLabel(t.sport))} · ${esc(t.record || "")}${t.rank ? ` · #${t.rank} power` : ""}</small></span><span class="r">${esc(t.streak || "")}</span></button>`).join("")}</div></div>` : "")
+    + (players.length ? `<div class="res-group"><h4>Players</h4><div class="card" style="padding:0 12px">${players.map(({ p }) => `<button class="hit" data-player="${p.sport}|${esc(p.id)}"><img src="${esc(p.head || "")}" alt="" loading="lazy" onerror="this.style.visibility='hidden'"><span style="min-width:0"><b>${esc(p.name)}</b><small>${esc(p.team)} · ${esc(p.pos)} · ${esc(p.sport)}</small></span><span class="r">${p.sport === "NBA" ? `${(p.cur || p.prev)?.avg?.pts ?? "—"} ppg` : statLine(p)}</span></button>`).join("")}</div></div>` : "")
+    + (gms.length ? `<div class="res-group"><h4>Games</h4><div class="card">${gms.map(gameRow).join("")}</div></div>` : "")
+    || `<p class="note">Nothing found for “${esc(state.gq)}”.</p>`;
+}
+const norm = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9 ]/g, "").trim();
+function statLine(p) { const a = (p.cur || p.prev)?.avg || {}; return a.passYds > 50 ? `${a.passYds} pass yds` : a.rushYds > a.recYds ? `${a.rushYds} rush yds` : a.recYds ? `${a.recYds} rec yds` : ""; }
+
+/* ------------------------------ team page ------------------------------ */
+async function openTeam(sp, abbr) {
+  if (!profiles) { loadingSheet(abbr); await loadProfiles(); sheetStack.pop(); }
+  const t = findTeam(sp, abbr) || { sport: sp, abbr, name: (teamIndex.get(`${sp}|${abbr}`) || {}).name || abbr, last: [], leaders: [], upcoming: [], injuries: [] };
+  const c = liveColor(t), picks = currentPicks().filter((x) => x.g.sport === sp && (x.g.home.abbr === abbr || x.g.away.abbr === abbr));
+  const up = t.upcoming.map((id) => games().find((g) => g.id === id)).filter(Boolean);
+  sheetShow(`<div class="sheet-bg" data-close="1"><div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(t.name)}">
+    <div class="banner" style="--ca:${c}66;--ch:${c}33"><div class="grab"></div><button class="close" data-close="1" aria-label="Close">✕</button>
+      <div class="vs" style="grid-template-columns:1fr"><div class="t" style="cursor:default">${mark(t, sp, true)}<b style="font-size:22px">${esc(t.name)}</b><small>${esc(sportLabel(sp))} · ${esc(t.record || "")}${t.streak ? ` · ${esc(t.streak)} streak` : ""}</small></div></div></div>
+    <div class="sheet-body">
+      <div class="tiles">
+        <div class="tile"><span>Power rank</span><b>${t.rank ? `#${t.rank}` : "—"}</b><small>of ${t.of || "—"} · rating ${t.rating != null ? sgn(t.rating) : "—"}</small></div>
+        <div class="tile"><span>Scores / allows</span><b>${t.pf ?? "—"} · ${t.pa ?? "—"}</b><small>per game this season</small></div>
+      </div>
+      ${t.last.length ? `<h2 class="sec"><span>Last ${t.last.length}</span><small>newest first</small></h2><div class="wl">${t.last.map((x) => `<span class="${x.r}" title="${x.home ? "vs" : "@"} ${esc(x.opp)} ${x.us}–${x.them}">${x.r}</span>`).join("")}</div>
+        <div class="card" style="margin-top:10px;padding:2px 12px">${t.last.slice(0, 6).map((x) => `<div class="prow"><button class="tlink" data-team="${sp}|${esc(x.opp)}">${mark({ abbr: x.opp }, sp)} <span>${x.home ? "vs" : "@"} ${esc((teamIndex.get(`${sp}|${x.opp}`) || {}).short || x.opp)}</span></button><span class="num ${x.r === "W" ? "good" : x.r === "L" ? "bad" : ""}">${x.r} ${x.us}–${x.them}</span><span class="note" style="margin:0">${esc(new Date(x.d).toLocaleDateString([], { month: "short", day: "numeric" }))}</span></div>`).join("")}</div>` : ""}
+      ${up.length ? `<h2 class="sec"><span>Next up</span></h2><div class="card">${up.map(gameRow).join("")}</div>` : ""}
+      ${picks.length ? `<h2 class="sec"><span>EdgeBot picks</span></h2>${picks.map((x) => pickCard(x)).join("")}` : ""}
+      ${t.leaders?.length ? `<h2 class="sec"><span>Leaders</span></h2><div class="card" style="padding:0 12px">${t.leaders.map((l) => { const p = findPlayer(sp, l.id); return `<button class="hit" data-player="${sp}|${esc(l.id)}"><img src="${esc(p?.head || "")}" alt="" loading="lazy" onerror="this.style.visibility='hidden'"><span style="min-width:0"><b>${esc(l.name)}</b><small>${esc(p?.pos || "")}</small></span><span class="r">${l.v} ${esc(l.k)}</span></button>`; }).join("")}</div>` : ""}
+      ${t.injuries?.length ? `<h2 class="sec"><span>Injuries</span><small>ESPN</small></h2><div class="card" style="padding:4px 14px">${t.injuries.slice(0, 10).map((p) => `<div class="prow"><span>${esc(p.name)} <small style="color:var(--dim)">${esc(p.pos)}</small></span><span class="note" style="margin:0">${esc(p.detail || "")}</span><span class="num bad">${esc(p.status === "DAY_TO_DAY" ? "DTD" : p.status)}</span></div>`).join("")}</div>` : ""}
+    </div></div></div>`, () => openTeam(sp, abbr));
+}
+
+/* ------------------------------ player page ------------------------------ */
+const STAT_NAME = { min: "Min", pts: "Pts", reb: "Reb", ast: "Ast", tpm: "3PM", stl: "Stl", blk: "Blk", passYds: "Pass Yds", passTd: "Pass TD", int: "INT", rushYds: "Rush Yds", rushAtt: "Carries", rec: "Rec", recYds: "Rec Yds" };
+async function openPlayer(sp, id) {
+  if (!profiles) { loadingSheet("Player"); await loadProfiles(); sheetStack.pop(); }
+  const p = findPlayer(sp, id), lines = (state.players?.props || []).filter((x) => x.sport === sp && String(x.pid) === String(id) && Date.parse(x.start) > Date.now());
+  if (!p && !lines.length) { toast("No profile for this player yet"); return; }
+  const name = p?.name || lines[0].name, team = p?.team || lines[0].team, tm = teamIndex.get(`${sp}|${team}`) || { abbr: team }, c = liveColor(tm);
+  const hist = (state.players?.ledger || []).filter((r) => r.sport === sp && String(r.pid) === String(id) && r.status === "graded"), hw = hist.filter((r) => r.result === "W").length;
+  const keys = p?.keys || [], A = (x) => x ? keys.map((k) => `<td>${x.avg[k] ?? "—"}</td>`).join("") : "";
+  sheetShow(`<div class="sheet-bg" data-close="1"><div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(name)}">
+    <div class="banner" style="--ca:${c}66;--ch:${c}22"><div class="grab"></div><button class="close" data-close="1" aria-label="Close">✕</button>
+      <div class="vs" style="grid-template-columns:1fr"><div class="t" style="cursor:default"><img class="headbig" style="--tc:${c}" src="${esc(p?.head || lines[0]?.head || "")}" alt="" onerror="this.style.visibility='hidden'"><b style="font-size:22px">${esc(name)}</b>
+        <small><button class="tlink" data-team="${sp}|${esc(team)}">${mark(tm, sp)} ${esc(tm.name || team)}</button> · ${esc(p?.pos || "")}</small></div></div></div>
+    <div class="sheet-body">
+      ${lines.length ? `<h2 class="sec"><span>Today’s lines</span><small>DraftKings · check Underdog</small></h2><div class="card" style="padding:2px 14px">${lines.map((x) => { const inS = slip.has(x.id); return `<div class="prow"><span><b>${esc(x.label)} ${x.line}</b><br><small style="color:var(--muted)">EdgeBot expects ${x.proj.toFixed(1)} · ${x.side === "higher" ? "▲ Higher" : "▼ Lower"} ${pct(x.p)}</small></span>${x.tier ? tierPill(x.tier, true) : `<span class="note" style="margin:0">no pick</span>`}${x.tier ? `<button class="addslip" data-slip="${esc(x.id)}" aria-pressed="${inS}">${inS ? "✓" : "+"}</button>` : "<span></span>"}</div>`; }).join("")}</div>` : ""}
+      ${p ? `<h2 class="sec"><span>Averages</span></h2><div class="card scroll-x" style="padding:0 6px"><table class="ptable"><thead><tr><th></th><th>GP</th>${keys.map((k) => `<th>${STAT_NAME[k] || k}</th>`).join("")}</tr></thead><tbody>
+          ${p.cur ? `<tr><td>This season</td><td>${p.cur.gp}</td>${A(p.cur)}</tr>` : ""}${p.prev ? `<tr><td>Last season</td><td>${p.prev.gp}</td>${A(p.prev)}</tr>` : ""}</tbody></table></div>
+        <h2 class="sec"><span>Game log</span><small>last ${p.log.length}</small></h2><div class="card scroll-x" style="padding:0 6px"><table class="ptable"><thead><tr><th>Game</th>${keys.map((k) => `<th>${STAT_NAME[k] || k}</th>`).join("")}</tr></thead><tbody>
+          ${p.log.map((r) => `<tr><td>${/^\d{4}-W/.test(r.d) ? `Wk ${+r.d.slice(-2)}` : esc(new Date(r.d).toLocaleDateString([], { month: "short", day: "numeric" }))} <span style="color:var(--dim)">${esc(r.opp || "")}</span></td>${keys.map((k) => `<td>${r[k] ?? 0}</td>`).join("")}</tr>`).join("")}</tbody></table></div>` : ""}
+      ${hist.length ? `<h2 class="sec"><span>EdgeBot on ${esc(name.split(" ").slice(-1)[0])}</span><small>${hw}–${hist.length - hw}</small></h2><div class="card" style="padding:2px 14px">${hist.slice(-8).reverse().map((r) => `<div class="prow"><span>${r.side === "higher" ? "▲" : "▼"} ${r.line} ${esc(r.label)}</span><span class="num">${r.actual ?? ""}</span><span class="${r.result}">${r.result === "W" ? "WIN" : r.result === "L" ? "LOSS" : "PUSH"}</span></div>`).join("")}</div>` : ""}
+    </div></div></div>`, () => openPlayer(sp, id));
+}
+
 /* ------------------------------ fun ------------------------------ */
 function countUp(root) {
   if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
@@ -756,7 +876,7 @@ function playerCard(x) {
   const hitsLast = x.last.filter((v) => (hi ? v > x.line : v < x.line)).length;
   const inSlip = slip.has(x.id);
   return `<article class="card pick ${x.tier === "Strong" ? "fire" : ""}" style="--tc:${hi ? "#45E0AE" : "#7FB8FF"}">${x.tier === "Strong" ? embers() : ""}
-    <div class="pp"><img class="head" src="${esc(x.head)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">
+    <div class="pp" data-player="${x.sport}|${esc(x.pid)}" style="cursor:pointer"><img class="head" src="${esc(x.head)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">
       <div class="who"><b>${esc(x.name)}</b><small>${mark(team, x.sport)} ${esc(x.team)} ${x.home ? "vs" : "@"} ${esc(x.opp)} · ${esc(when(x.start))}${x.status ? ` · <span class="bad">${esc(x.status === "QUESTIONABLE" ? "Questionable" : "Day-to-day")}</span>` : ""}</small></div>
       ${x.tier ? tierPill(x.tier) : ""}</div>
     <div class="call"><b class="${hi ? "hi" : "lo"}">${hi ? "▲ Higher" : "▼ Lower"}</b><span>${x.line} ${esc(statShort(x))}</span></div>
@@ -857,9 +977,9 @@ function openGame(id) {
   const html = `<div class="sheet-bg" data-close="1"><div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(g.away.name)} at ${esc(g.home.name)}">
     <div class="banner" style="--ca:${ca}55;--ch:${ch}55"><div class="grab"></div><button class="close" data-close="1" aria-label="Close">✕</button>
       <div class="note" style="text-align:center;margin:0">${esc(sportLabel(g.sport))} · ${esc(dayLabel(g.start))} ${esc(timeOf(g.start))}${g.detail && !/^\d/.test(g.detail) && g.status !== "pre" ? ` · ${esc(g.detail)}` : ""}</div>
-      <div class="vs"><div class="t">${mark(g.away, g.sport, true)}<b>${esc(g.away.short || g.away.name)}</b><small>${esc(g.away.record || "away")}</small></div>
+      <div class="vs"><button class="t" data-team="${g.sport}|${esc(g.away.abbr)}">${mark(g.away, g.sport, true)}<b>${esc(g.away.short || g.away.name)}</b><small>${esc(g.away.record || "away")} · team page ›</small></button>
         <div class="mid">${fin ? `<big class="num">${g.away.score}–${g.home.score}</big>Final` : s ? `<big class="num">${Math.round(s.muA)}–${Math.round(s.muH)}</big>projected` : "vs"}</div>
-        <div class="t">${mark(g.home, g.sport, true)}<b>${esc(g.home.short || g.home.name)}</b><small>${esc(g.home.record || "home")}</small></div></div>
+        <button class="t" data-team="${g.sport}|${esc(g.home.abbr)}">${mark(g.home, g.sport, true)}<b>${esc(g.home.short || g.home.name)}</b><small>${esc(g.home.record || "home")} · team page ›</small></button></div>
     </div>
     <div class="sheet-body">
     ${pk ? `<div class="callout">${tierPill(pk.tier)} <b>${esc(pk.label)}</b> <span class="num">${am(pk.price)}</span>
@@ -879,6 +999,7 @@ function openGame(id) {
     ${lineChart(g)}
     <h2 class="sec"><span>Why</span></h2><ul class="why">${(g.why || []).filter((x) => !/injuries:|^Blend:|% vs \d+% priced in/.test(x)).map((x) => `<li>${esc(x)}</li>`).join("")}</ul>
     ${(g.why || []).filter((x) => /^Blend:/.test(x)).map((x) => `<p class="note" style="color:var(--dim)">${esc(x)}</p>`).join("")}
+    ${(() => { const L = (state.players?.props || []).filter((x) => x.gameId === g.id), seen = new Set(), ps = L.filter((x) => !seen.has(x.pid) && seen.add(x.pid)).slice(0, 16); return ps.length ? `<h2 class="sec"><span>Players</span><small>tap for lines & stats</small></h2><div class="card" style="padding:0 12px">${ps.map((x) => { const best = L.filter((y) => y.pid === x.pid && y.tier).sort((a, b) => b.p - a.p)[0]; return `<button class="hit" data-player="${x.sport}|${esc(x.pid)}"><img src="${esc(x.head)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'"><span style="min-width:0"><b>${esc(x.name)}</b><small>${esc(x.team)} · ${esc(x.pos)}</small></span><span class="r">${best ? `${best.side === "higher" ? "▲" : "▼"} ${best.line} ${esc(best.label)}` : `${L.filter((y) => y.pid === x.pid).length} lines`}</span></button>`; }).join("")}</div>` : ""; })()}
     ${injuryBlock(g)}
     ${p && !fin ? `<h2 class="sec"><span>Check your own line</span></h2>
       <div class="check"><label for="ck-spread">${esc(g.home.abbr)} spread<input id="ck-spread" inputmode="decimal" value="${g.spread ?? ""}" placeholder="-3.5"></label>
@@ -887,8 +1008,7 @@ function openGame(id) {
       <div class="res" id="ck-out" aria-live="polite"></div>` : ""}
     </div>
   </div></div>`;
-  $("#sheet-root").innerHTML = html;
-  document.body.style.overflow = "hidden";
+  sheetShow(html, () => openGame(id));
   const out = $("#ck-out");
   if (out) {
     const calc = () => {
@@ -902,7 +1022,7 @@ function openGame(id) {
     ["#ck-spread", "#ck-total", "#ck-price"].forEach((s) => $(s).addEventListener("input", calc)); calc();
   }
 }
-function closeSheet() { $("#sheet-root").innerHTML = ""; document.body.style.overflow = ""; }
+function closeSheet() { $("#sheet-root").innerHTML = ""; document.body.style.overflow = ""; sheetStack = []; }
 
 /* ------------------------------ render ------------------------------ */
 function setTabs() { document.querySelectorAll("nav.tabs button").forEach((b) => b.dataset.tab === state.tab ? b.setAttribute("aria-current", "page") : b.removeAttribute("aria-current")); }
@@ -922,7 +1042,7 @@ function render() {
   if (state.tab === "hq") hq.mount($("#hq-canvas")); else hq.pause();
 }
 document.addEventListener("click", (e) => {
-  const t = e.target.closest("button,[data-close]"); if (!t) return;
+  const t = e.target.closest("button,[data-close],[data-player]"); if (!t) return;
   if (t.dataset.tab) { state.tab = t.dataset.tab; setTabs(); window.scrollTo({ top: 0 }); render(); return; }
   if (t.dataset.sport || t.dataset.sport2) { state.sport = t.dataset.sport || t.dataset.sport2; render(); return; }
   if (t.dataset.day) { state.day = t.dataset.day; render(); return; }
@@ -938,11 +1058,15 @@ document.addEventListener("click", (e) => {
     if (t.dataset.keep) { const on = state.saved.includes(id); t.textContent = on ? "★ Saved" : "☆ Save pick"; t.classList.toggle("primary", !on); toast(on ? "Saved — find it under ★ Saved" : "Removed from saved"); } return; }
   if (t.dataset.share) { const g = games().find((x) => x.id === t.dataset.share); if (g) sharePick(g); return; }
   if (t.dataset.tipclose) { try { localStorage.setItem("edgebot-tip", "1"); } catch {} t.closest(".tip")?.remove(); return; }
+  if (t.dataset.search) { openSearch(); return; }
+  if (t.dataset.back) { sheetBack(); return; }
+  if (t.dataset.team) { const [sp, ab] = t.dataset.team.split("|"); openTeam(sp, ab); return; }
+  if (t.dataset.player) { const [sp, id] = t.dataset.player.split("|"); openPlayer(sp, id); return; }
   if (t.dataset.game) { openGame(t.dataset.game); return; }
   if (t.dataset.close && (e.target === t || t.classList.contains("close"))) closeSheet();
 });
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeSheet(); });
-document.addEventListener("input", (e) => { if (e.target.id === "psearch") { state.pq = e.target.value; const pos = e.target.selectionStart; render(); const el = $("#psearch"); if (el) { el.focus(); el.setSelectionRange(pos, pos); } } });
+document.addEventListener("input", (e) => { if (e.target.id === "gsearch") { runSearch(); return; } if (e.target.id === "psearch") { state.pq = e.target.value; const pos = e.target.selectionStart; render(); const el = $("#psearch"); if (el) { el.focus(); el.setSelectionRange(pos, pos); } } });
 
 /* ------------------------------ 3D HQ ------------------------------ */
 const hq = (() => {
