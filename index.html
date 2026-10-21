@@ -636,7 +636,7 @@ function viewPicks() {
   const best = picks.filter((x) => x.p.tier !== "Lean").slice(0, 3), rest = picks.filter((x) => !best.includes(x));
   const R = record(), clv = state.ledger.filter((r) => r.clv), beat = clv.filter((r) => (r.clv.pts ?? 0) > 0 || (r.clv.prob ?? 0) > 0.002).length;
   const total = currentPicks().length, strong = currentPicks().filter((x) => x.p.tier !== "Lean").length;
-  return `${installTip()}<section class="hero">
+  return `${installTip()}${postKit()}<section class="hero">
       <div class="eyebrow">${esc(new Date().toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" }))}</div>
       <h2>${total ? `<em>${total}</em> picks on the board${strong ? `, ${strong} running hot` : ""}` : "No edges on the board yet"}</h2>
       ${!isOwner ? `<div class="kpis"><div class="kpi"><b class="num">${games().filter((g) => g.status !== "post" && Date.parse(g.start) < Date.now() + 864e5).length}</b><span>games in the next 24h</span></div>
@@ -975,7 +975,7 @@ function projPanel(lines, p) {
     ${g.minutes ? `<div class="projhead"><span>Expected minutes <b style="color:var(--fg)">${g.minutes.toFixed(0)}</b></span><span>${g.gamesThisSeason ? `${g.gamesThisSeason} games this season` : `${g.games} games of history`}</span></div>` : ""}
     <div class="projgrid">${L.map((x) => { const hi = x.side === "higher", c = hi ? "#45E0AE" : "#7FB8FF", gap = Math.min(1, Math.abs(x.proj - x.line) / Math.max(1, x.line * 0.25));
       return `<div class="ptile ${x.tier ? "pick" : ""}" style="--tc:${c}">${x.tier ? `<span class="tag">${tierEmoji(x.tier)}</span>` : ""}<small>${esc(STAT_ABBR[x.stat] || x.label)}</small><b>${x.proj.toFixed(1)}</b><span>line ${x.line} · ${x.wild ? `<span style="color:var(--dim)">too far off</span>` : `<span class="${hi ? "hi" : "lo"}">${hi ? "▲" : "▼"} ${pct(x.p)}</span>`}</span>${x.wild ? "" : `<i class="bar" style="width:${(gap * 100).toFixed(0)}%"></i>`}</div>`; }).join("")}</div>
-    ${top ? `<p class="plain" style="margin:10px 2px 0">EdgeBot’s best play: <b class="${top.side === "higher" ? "good" : ""}">${top.side === "higher" ? "▲ Higher" : "▼ Lower"} ${top.line} ${esc(top.label)}</b>, hits ${pct(top.p)} of the time. He went ${top.side === "higher" ? "over" : "under"} in ${top.last.filter((v) => top.side === "higher" ? v > top.line : v < top.line).length} of his last ${top.last.length}.</p>` : `<p class="note" style="margin:10px 2px 0">No pick on him tonight. The projections are too close to the lines.</p>`}
+    ${top ? `<p class="plain" style="margin:10px 2px 0">EdgeBot’s best play: <b class="${top.side === "higher" ? "good" : ""}">${top.side === "higher" ? "▲ Higher" : "▼ Lower"} ${top.line} ${esc(top.label)}</b>, hits ${pct(top.p)} of the time. He went ${top.side === "higher" ? "over" : "under"} in ${top.last.filter((v) => top.side === "higher" ? v > top.line : v < top.line).length} of his last ${top.last.length}. <button class="btn" data-pshare="${esc(top.id)}" style="margin-top:8px">↗ Share this pick</button></p>` : `<p class="note" style="margin:10px 2px 0">No pick on him tonight. The projections are too close to the lines.</p>`}
     <p class="note" style="margin:6px 2px 0">Big number = EdgeBot’s projection. Colored bar = how far it sits from the line. “Too far off” = the projection is so far from the line that something (role, injury) is probably missing, so EdgeBot won’t pick it.</p>`;
 }
 
@@ -1115,7 +1115,102 @@ function crowdBlock(g) {
       <p class="note" style="margin:8px 0 0;padding:0;color:var(--dim)">${g.kind === "match" ? "For matchups EdgeBot starts from the crowd’s price and adjusts it by Elo ratings learned from verified results (25% weight, only with 15+ results per side)." : "Crowd and ESPN numbers are shown for context and logged with each pick, but don’t move EdgeBot’s picks until they prove they help."}</p>
     </div>`;
 }
+/* ------------------------------ share cards & post kit ------------------------------ */
+const DISCLAIM = "21+ · Not guaranteed · For entertainment · Bet responsibly";
+const APP_URL = "th4r6xkgcs-ui.github.io/edgebot";
+const tierWord = (t) => t === "Strong" ? "🔥🔥🔥 FIRE" : t === "Value" ? "🔥🔥 HOT" : "🔥 WARM";
+/** spec: {kicker, title, sub, big, bigLabel, small, smallLabel, reason, color, result} → 1080×1350 PNG blob */
+async function drawCard(spec) {
+  const W = 1080, H = 1350, c = Object.assign(document.createElement("canvas"), { width: W, height: H }), x = c.getContext("2d");
+  const F = (w, px) => `${w} ${px}px -apple-system, "SF Pro Display", Inter, "Segoe UI", Roboto, sans-serif`, col = spec.color || "#FFB547";
+  const bg = x.createLinearGradient(0, 0, W, H); bg.addColorStop(0, "#0B1124"); bg.addColorStop(1, "#05070F"); x.fillStyle = bg; x.fillRect(0, 0, W, H);
+  const glow = x.createRadialGradient(W * 0.8, H * 0.18, 10, W * 0.8, H * 0.18, 700); glow.addColorStop(0, col + "55"); glow.addColorStop(1, "transparent"); x.fillStyle = glow; x.fillRect(0, 0, W, H);
+  x.strokeStyle = "rgba(255,255,255,.05)"; x.lineWidth = 1; for (let i = 0; i < W; i += 60) { x.beginPath(); x.moveTo(i, 0); x.lineTo(i, H); x.stroke(); } for (let j = 0; j < H; j += 60) { x.beginPath(); x.moveTo(0, j); x.lineTo(W, j); x.stroke(); }
+  // logo
+  x.fillStyle = "#121A33"; x.beginPath(); x.roundRect(72, 72, 96, 96, 24); x.fill(); x.strokeStyle = "#FFB547"; x.lineWidth = 9; x.lineCap = x.lineJoin = "round";
+  x.beginPath(); x.moveTo(94, 140); x.lineTo(116, 118); x.lineTo(130, 130); x.lineTo(150, 102); x.stroke(); x.fillStyle = "#45E0AE"; x.beginPath(); x.arc(150, 100, 9, 0, 7); x.fill();
+  x.font = F(800, 60); x.fillStyle = "#EEF1F8"; x.fillText("Edge", 192, 140); const ew = x.measureText("Edge").width; x.fillStyle = "#FFB547"; x.fillText("Bot", 192 + ew, 140);
+  x.font = F(800, 30); x.fillStyle = col; x.fillText(spec.kicker.toUpperCase(), 72, 290);
+  // title (wrap)
+  const wrap = (t, max, lh, y, font, fill) => { x.font = font; x.fillStyle = fill; let line = "", yy = y; for (const w of String(t).split(" ")) { const tt = line ? line + " " + w : w; if (x.measureText(tt).width > max && line) { x.fillText(line, 72, yy); yy += lh; line = w; } else line = tt; } x.fillText(line, 72, yy); return yy; };
+  let y = wrap(spec.title, W - 144, 108, 400, F(900, 96), "#FFFFFF");
+  y = wrap(spec.sub, W - 144, 50, y + 72, F(600, 40), "#AEB8D0");
+  // stat boxes
+  const box = (bx, label, val, accent) => { x.fillStyle = "rgba(255,255,255,.05)"; x.strokeStyle = accent ? col : "rgba(255,255,255,.12)"; x.lineWidth = accent ? 4 : 2; x.beginPath(); x.roundRect(bx, y + 70, 450, 230, 32); x.fill(); x.stroke();
+    x.font = F(700, 30); x.fillStyle = "#8C98B4"; x.fillText(label.toUpperCase(), bx + 36, y + 130); x.font = F(900, 110); x.fillStyle = accent ? col : "#EEF1F8"; x.fillText(val, bx + 32, y + 260); };
+  box(72, spec.bigLabel, spec.big, true); box(558, spec.smallLabel, spec.small, false); y += 300;
+  if (spec.reason) y = wrap(spec.reason, W - 144, 46, y + 100, F(500, 36), "#D6DCEA");
+  if (spec.result) { x.font = F(900, 64); const rc = spec.result === "WIN" ? "#45E0AE" : spec.result === "LOSS" ? "#FF6F61" : "#AEB8D0"; x.fillStyle = rc + "22"; x.beginPath(); x.roundRect(72, H - 330, 360, 110, 28); x.fill(); x.fillStyle = rc; x.fillText(spec.result === "WIN" ? "✓ WIN" : spec.result === "LOSS" ? "✗ LOSS" : "PUSH", 104, H - 252); }
+  x.fillStyle = "rgba(255,255,255,.08)"; x.fillRect(72, H - 170, W - 144, 2);
+  x.font = F(700, 32); x.fillStyle = "#EEF1F8"; x.fillText(APP_URL, 72, H - 110); x.font = F(500, 26); x.fillStyle = "#6F7A96"; x.fillText(DISCLAIM, 72, H - 66);
+  return await new Promise((r) => c.toBlob(r, "image/png"));
+}
+function teamSpec(g, pk) {
+  const side = pickedTeam(g, pk), color = side ? liveColor(g[side]) : "#FFB547";
+  return { kicker: `${SHORT[g.sport] || g.sport} · ${dayLabel(g.start)} ${timeOf(g.start)} · ${tierWord(pk.tier)}`, title: `${pk.label} ${am(pk.price)}`, sub: `${g.away.name} @ ${g.home.name}`,
+    big: pct(pk.p), bigLabel: "EdgeBot says", small: pct(pk.pMkt), smallLabel: "Odds imply", reason: (topReason(g) || "").replace(/<[^>]+>/g, ""), color: /^#?[0-9a-f]{6}$/i.test(color.replace("#", "")) ? (color.startsWith("#") ? color : "#" + color) : "#FFB547" };
+}
+function playerSpec(x) {
+  const hi = x.side === "higher", hits = x.last.filter((v) => hi ? v > x.line : v < x.line).length;
+  return { kicker: `${SHORT[x.sport] || x.sport} · ${dayLabel(x.start)} ${timeOf(x.start)} · ${tierWord(x.tier)}`, title: `${x.name} ${hi ? "▲ Higher" : "▼ Lower"} ${x.line} ${STAT_ABBR[x.stat] || x.label}`,
+    sub: `${x.team} ${x.home ? "vs" : "@"} ${x.opp}`, big: x.proj.toFixed(1), bigLabel: "Projected", small: pct(x.p), smallLabel: `${hi ? "Higher" : "Lower"} hits`, reason: `Went ${hi ? "over" : "under"} in ${hits} of his last ${x.last.length}.`, color: hi ? "#45E0AE" : "#7FB8FF" };
+}
+async function shareImage(spec, text, name = "edgebot-pick.png") {
+  try {
+    const blob = await drawCard(spec), file = new File([blob], name, { type: "image/png" });
+    if (navigator.canShare?.({ files: [file] })) { try { await navigator.share({ files: [file], text }); } catch (e) { if (e?.name !== "AbortError") throw e; } return; }
+    const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: name }); a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    try { await navigator.clipboard.writeText(text); toast("Image saved · caption copied"); } catch { toast("Image saved"); }
+  } catch { toast("Couldn’t make the image on this device"); }
+}
+/** Today's free pick: the strongest pick starting today (team or player), chosen by a fixed rule so the next day's recap matches. */
+function scorePost(r) { return (TIER_RANK[r.tier] || 0) * 10 + (r.edge ?? (r.p - 0.5)) * 10 + (r.p || 0); }
+function postOfDay(key) {
+  const team = state.ledger.filter((r) => r.tier && dayKey(r.start) === key && r.status !== "void").map((r) => ({ kind: "team", r }));
+  const ply = (state.players?.ledger || []).filter((r) => r.tier && dayKey(r.start) === key).map((r) => ({ kind: "player", r }));
+  return [...team, ...ply].sort((a, b) => scorePost(b.r) - scorePost(a.r) || (a.r.id < b.r.id ? -1 : 1))[0] || null;
+}
+function captions(post, recap) {
+  if (!post) return [];
+  const r = post.r, isP = post.kind === "player", hi = r.side === "higher";
+  const pickTxt = isP ? `${r.name} ${hi ? "OVER" : "UNDER"} ${r.line} ${STAT_ABBR[r.stat] || r.label}` : `${r.label} (${am(r.price)})`;
+  const game = isP ? `${r.team} ${r.home ? "vs" : "@"} ${r.opp}` : r.matchup;
+  const num = isP ? `projects ${r.proj?.toFixed(1)} · ${pct(r.p)} to hit` : `${pct(r.p)} vs ${pct(r.pMkt)} the odds imply`;
+  const rec = recap ? `Yesterday: ${recap.label} → ${recap.result === "W" ? "✅ WIN" : recap.result === "L" ? "❌ loss" : "push"}. ` : "";
+  const tag = isP ? "#UnderdogFantasy #PrizePicks #" + r.sport : "#SportsBetting #" + r.sport;
+  return [
+    { label: "X / Twitter", text: `${rec}Free pick of the day 🤖\n\n${pickTxt}\n${game}\n\nEdgeBot ${num}. It learns from every result.\n\n${DISCLAIM.split(" · ").slice(0, 2).join(" · ")}` },
+    { label: "TikTok / Reels", text: `The bot likes ${pickTxt} tonight 👀 ${num}. ${rec}Not a lock, just math. ${tag} #EdgeBot · ${DISCLAIM}` },
+    { label: "Discord", text: `**🆓 Free pick: ${pickTxt}**\n${game} · ${num}\n${rec}\n_${DISCLAIM}_` },
+  ];
+}
+function recapOf(key) { const p = postOfDay(key); if (!p) return null; const r = p.r; if (!r.result || r.result === "V") return null; return { label: p.kind === "player" ? `${r.name} ${r.side === "higher" ? "O" : "U"}${r.line} ${STAT_ABBR[r.stat] || ""}`.trim() : r.label, result: r.result, r, kind: p.kind }; }
+function postKit() {
+  if (!isOwner) return "";
+  const today = dayKey(Date.now()), post = postOfDay(today), recap = recapOf(dayKey(Date.now() - 864e5));
+  if (!post && !recap) return "";
+  const caps = captions(post, recap); state._caps = caps;
+  return `<section class="card" style="padding:14px 16px;margin-top:12px;border-color:#FFB54755">
+    <div style="display:flex;justify-content:space-between;align-items:center"><b>📣 Today’s post</b><small class="muted">owner only · auto-picked</small></div>
+    ${post ? `<p style="margin:8px 0 10px;font-size:14.5px">Free pick: <b>${esc(post.kind === "player" ? `${post.r.name} ${post.r.side === "higher" ? "▲" : "▼"} ${post.r.line} ${STAT_ABBR[post.r.stat] || post.r.label}` : post.r.label)}</b> <span class="muted">· ${esc(timeOf(post.r.start))}</span></p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" data-postshare="pick">↗ Share image</button>${caps.map((c, i) => `<button class="btn" data-copycap="${i}">Copy ${esc(c.label)}</button>`).join("")}</div>` : `<p class="muted" style="margin:8px 0">No pick today yet.</p>`}
+    ${recap ? `<p style="margin:12px 0 8px;font-size:14px">Yesterday’s free pick: <b>${esc(recap.label)}</b> → <b class="${recap.result === "W" ? "good" : "bad"}">${recap.result === "W" ? "WIN" : recap.result === "L" ? "LOSS" : "PUSH"}</b></p><button class="btn" data-postshare="recap">↗ Share result</button>` : ""}
+    <p class="note" style="margin:10px 0 0">Post the pick before the game and the result after, win or lose. That’s what builds trust.</p></section>`;
+}
+async function postShare(which) {
+  const today = dayKey(Date.now());
+  if (which === "pick") { const post = postOfDay(today); if (!post) return; const caps = captions(post, recapOf(dayKey(Date.now() - 864e5)));
+    const live = post.kind === "player" ? (state.players?.props || []).find((x) => x.id === post.r.id) || post.r : null, g = post.kind === "team" ? games().find((x) => x.id === post.r.gameId) : null;
+    const spec = post.kind === "player" ? playerSpec({ ...live, last: live.last || [] }) : g?.pick ? teamSpec(g, g.pick) : { kicker: `${post.r.sport} · ${tierWord(post.r.tier)}`, title: `${post.r.label} ${am(post.r.price)}`, sub: post.r.matchup, big: pct(post.r.p), bigLabel: "EdgeBot says", small: pct(post.r.pMkt), smallLabel: "Odds imply", reason: "" };
+    return shareImage({ ...spec, kicker: "Free pick · " + spec.kicker }, caps[0].text, "edgebot-free-pick.png"); }
+  const rc = recapOf(dayKey(Date.now() - 864e5)); if (!rc) return; const r = rc.r;
+  const spec = { kicker: `Yesterday’s free pick · ${r.sport}`, title: rc.label, sub: rc.kind === "player" ? `${r.team} ${r.home ? "vs" : "@"} ${r.opp}${r.actual != null ? ` · finished with ${r.actual}` : ""}` : `${r.matchup}${r.final ? ` · ${r.final}` : ""}`,
+    big: pct(r.p), bigLabel: "EdgeBot said", small: rc.kind === "player" ? String(r.line) : am(r.price), smallLabel: rc.kind === "player" ? "Line" : "Odds", reason: rc.result === "W" ? "Called it. On to tonight." : "Missed this one. Every result goes back into the model.", color: rc.result === "W" ? "#45E0AE" : "#FF6F61", result: rc.result === "W" ? "WIN" : rc.result === "L" ? "LOSS" : "PUSH" };
+  return shareImage(spec, `Yesterday’s free pick: ${rc.label} → ${rc.result === "W" ? "✅ WIN" : rc.result === "L" ? "❌ loss" : "push"}. Every result goes back into EdgeBot. ${DISCLAIM}`, "edgebot-result.png");
+}
+
 async function sharePick(g) {
+  if (g.pick) { const sp = teamSpec(g, g.pick); return shareImage(sp, `EdgeBot pick: ${g.pick.label} ${am(g.pick.price)} · ${g.away.abbr} @ ${g.home.abbr} · EdgeBot ${pct(g.pick.p)} vs ${pct(g.pick.pMkt)} the odds imply. ${DISCLAIM}`); }
   const pk = g.pick, text = pk ? `EdgeBot pick: ${pk.label} ${am(pk.price)} (${g.away.abbr} @ ${g.home.abbr}, ${dayLabel(g.start)} ${timeOf(g.start)}) — EdgeBot ${pct(pk.p)} vs ${pct(pk.pMkt)} priced in. ${pk.tier}.`
     : `${g.away.name} @ ${g.home.name} — EdgeBot: ${g.home.abbr} ${pct(g.pred?.pHome)} / ${g.away.abbr} ${pct(g.pred?.pAway)}.`;
   try { if (navigator.share) { await navigator.share({ title: "EdgeBot", text, url: location.href.split("#")[0] }); return; } } catch (e) { if (e?.name === "AbortError") return; }
@@ -1217,6 +1312,9 @@ document.addEventListener("click", (e) => {
   if (t.dataset.pall) { state.pall = true; render(); return; }
   if (t.dataset.save) { const id = t.dataset.save; state.saved = state.saved.includes(id) ? state.saved.filter((x) => x !== id) : [...state.saved, id]; saveSaved(); render();
     if (t.dataset.keep) { const on = state.saved.includes(id); t.textContent = on ? "★ Saved" : "☆ Save pick"; t.classList.toggle("primary", !on); toast(on ? "Saved — find it under ★ Saved" : "Removed from saved"); } return; }
+  if (t.dataset.postshare) { postShare(t.dataset.postshare); return; }
+  if (t.dataset.copycap) { const c = state._caps?.[+t.dataset.copycap]; if (c) navigator.clipboard.writeText(c.text).then(() => toast(`${c.label} caption copied`), () => toast("Couldn’t copy")); return; }
+  if (t.dataset.pshare) { const x = (state.players?.props || []).find((y) => y.id === t.dataset.pshare); if (x) shareImage(playerSpec(x), `${x.name} ${x.side === "higher" ? "OVER" : "UNDER"} ${x.line} ${STAT_ABBR[x.stat] || x.label} · EdgeBot projects ${x.proj.toFixed(1)} · ${pct(x.p)} to hit. ${DISCLAIM}`, "edgebot-player.png"); return; }
   if (t.dataset.share) { const g = games().find((x) => x.id === t.dataset.share); if (g) sharePick(g); return; }
   if (t.dataset.tipclose) { try { localStorage.setItem("edgebot-tip", "1"); } catch {} t.closest(".tip")?.remove(); return; }
   if (t.dataset.search) { openSearch(); return; }
