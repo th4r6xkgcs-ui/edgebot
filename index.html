@@ -431,7 +431,7 @@ async function connect() {
       if (!r.ok) throw new Error("The first update hasn’t finished yet. Check back in a few minutes.");
       const d = await r.json();
       state.players = d.players || null; state.slate = d.slate; state.model = d.model; state.ledger = d.ledger || []; state.runs = d.runs || []; state.teams = d.teams || {}; state.error = "";
-      simCache.clear(); indexTeams(); render(); if (hq.ready) hq.update(); celebrateWins();
+      simCache.clear(); indexTeams(); render(); if (hq.ready) hq.update(); celebrateWins(); if (!liveTimer) startLive();
     } catch (e) { state.error = navigator.onLine === false ? "You’re offline — showing the last loaded picks." : e.message; if (!state.slate) render(); }
   };
   await load();
@@ -448,7 +448,7 @@ function sim(g) {
 }
 function currentPicks() {
   const now = Date.now();
-  return games().filter((g) => g.pick && Date.parse(g.start) > now - 3 * 3600e3)
+  return games().filter((g) => g.pick && (Date.parse(g.start) > now - 3 * 3600e3 || g.status === "in"))
     .map((g) => ({ g, p: g.pick, id: `${g.id}~${g.pick.market}~${g.pick.side}` }))
     .sort((a, b) => b.p.ev - a.p.ev);
 }
@@ -542,7 +542,7 @@ function pickCard({ g, p, id }, feat) {
         <div class="teams">${teamLine(g.away, g.sport, side === "away", g.rank?.away)}${teamLine(g.home, g.sport, side === "home", g.rank?.home)}</div></div>
       ${ring(p.p, p.pMkt, ringColor)}
     </button>
-    ${why ? `<p class="reason">${esc(why)}</p>` : ""}
+    ${g.status === "in" ? `<p class="reason" style="display:flex;justify-content:space-between;gap:10px;align-items:center"><span class="livebadge">LIVE</span><b class="num">${esc(g.away.abbr)} ${g.away.score ?? 0} – ${esc(g.home.abbr)} ${g.home.score ?? 0}</b><span class="note" style="margin:0;padding:0">${esc(g.detail || "")}</span></p>` : g.status === "post" && g.home.score != null ? `<p class="reason"><b>Final</b> · ${esc(g.away.abbr)} ${g.away.score} – ${esc(g.home.abbr)} ${g.home.score}</p>` : why ? `<p class="reason">${esc(why)}</p>` : ""}
     ${crowdChip(g, p)}
     ${(() => { const m = moveDirection(g, p); return m ? `<span class="move ${m.toward ? "with" : "against"}" title="Line movement since EdgeBot first saw it">${m.toward ? "▲" : "▼"} ${esc(m.text)} · ${m.toward ? "moving our way" : "moving against"}</span>` : ""; })()}
     <div class="stats" style="grid-template-columns:repeat(3,minmax(0,1fr))"><div><span>Hits</span><b class="good">${pct(p.p)}</b></div><div><span>Needs</span><b>${pct(p.pMkt)}</b></div><div><span>Bet</span><b>${(p.stake ?? 0.25)}u</b></div></div>
@@ -786,6 +786,39 @@ function openSlip() {
     </div></div></div>`;
   document.body.style.overflow = "hidden";
 }
+
+/* ------------------------------ live scores (straight from ESPN, every 30s while games are on) ------------------------------ */
+let liveTimer = 0, liveOff = false;
+const ymdLocal = (d) => new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" }).format(d).replaceAll("-", "");
+function liveCandidates() {
+  const now = Date.now();
+  return games().filter((g) => SP[g.sport] && g.status !== "post" && Date.parse(g.start) <= now + 5 * 60e3 && Date.parse(g.start) > now - 6 * 3600e3);
+}
+async function liveTick() {
+  if (liveOff || document.hidden) return;
+  const cand = liveCandidates(); if (!cand.length) return;
+  const byId = new Map(cand.map((g) => [g.id, g])), sports = [...new Set(cand.map((g) => g.sport))];
+  const days = [...new Set([ymdLocal(new Date()), ymdLocal(new Date(Date.now() - 6 * 3600e3))])];
+  let changed = false;
+  for (const sp of sports) for (const day of days) {
+    try {
+      const q = sp === "NCAAF" ? "&groups=80" : sp === "NCAAB" ? "&groups=50" : "";
+      const r = await fetch(`https://site.api.espn.com/apis/site/v2/sports/${SP[sp].path}/scoreboard?dates=${day}${q}`, { cache: "no-store" });
+      if (!r.ok) continue;
+      for (const ev of (await r.json()).events || []) {
+        const g = byId.get(`${sp}:${ev.id}`); if (!g) continue;
+        const c = ev.competitions?.[0], st = ev.status?.type || c?.status?.type || {}, H = c?.competitors?.find((x) => x.homeAway === "home"), A = c?.competitors?.find((x) => x.homeAway === "away");
+        const status = st.state === "post" && st.completed ? "post" : st.state === "in" ? "in" : g.status;
+        const hs = H ? +H.score : null, as = A ? +A.score : null, det = st.shortDetail || g.detail;
+        if (status !== g.status || hs !== g.home.score || as !== g.away.score || det !== g.detail) {
+          Object.assign(g, { status, detail: det }); if (status !== "pre") { g.home.score = hs; g.away.score = as; } changed = true;
+        }
+      }
+    } catch { liveOff = true; return; } // blocked or offline: fall back to the regular updates
+  }
+  if (changed && !$(".sheet") && state.tab !== "hq") render();
+}
+function startLive() { clearInterval(liveTimer); liveTimer = setInterval(liveTick, 30000); liveTick(); }
 
 /* ------------------------------ profiles (lazy) ------------------------------ */
 let profiles = null, profilesLoading = null;
