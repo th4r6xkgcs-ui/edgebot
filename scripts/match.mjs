@@ -13,7 +13,8 @@ const W_ELO = 0.25; // starting weight on Elo vs the crowd's price (unvalidated 
 const parse = (x) => { try { return JSON.parse(x); } catch { return null; } };
 const key = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]/g, "");
 const toAm = (p) => p <= 0 || p >= 1 ? null : p >= 0.5 ? -Math.round(100 * p / (1 - p)) : Math.round(100 * (1 - p) / p);
-const short = (n) => { const w = String(n).split(" "); return w.length > 1 && w[0].length > 2 && !/^(team|fc|the)$/i.test(w[0]) ? w[w.length - 1] : n; };
+const short = (n, sport) => { const clean = String(n).replace(/\s+(esports?|gaming|team|club|fc|e-?sports)$/i, "").trim() || String(n);
+  if (sport === "ESPORTS") return clean; const w = clean.split(" "); return w.length > 1 && w[0].length > 2 ? w[w.length - 1] : clean; };
 
 async function eventsFor(getJson, series, closed) {
   const out = [];
@@ -29,6 +30,8 @@ function moneyline(e) {
   if (!outs || outs.length !== 2 || px.length !== 2) return null;
   return { outs, px, vol: +mk.volumeNum || 0, closed: !!mk.closed || !!e.closed };
 }
+const PALETTE = ["FFB547", "5CC8FF", "8F80FF", "45E0AE", "FF6F61", "F08FD0", "B8F25A", "FF9F5A", "6FA8FF", "E8E05A"];
+const colorOf = (n) => { let h = 0; for (const c of String(n)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return PALETTE[h % PALETTE.length]; };
 const elo = (ra, rb) => 1 / (1 + Math.pow(10, (rb - ra) / 400));
 
 export async function matchCycle({ getJson, nowISO, ledger }) {
@@ -64,19 +67,19 @@ export async function matchCycle({ getJson, nowISO, ledger }) {
         const vol = +e.volume || 0, enough = A.n >= 15 && H.n >= 15 && vol >= 2000, eA = elo(A.r, H.r), wild = Math.abs(eA - mkA) > 0.22;
         const w = enough && !wild ? W_ELO : 0, pA = (1 - w) * mkA + w * eA;
         const g = { id: `PM:${e.id}`, sport, kind: "match", league: pool, title: e.title, start: new Date(start).toISOString(), status: Date.parse(start) <= NOW ? "in" : "pre",
-          away: { abbr: short(aN).slice(0, 14), name: aN, short: short(aN), record: A.n ? `${Math.round(A.r)} Elo` : null }, home: { abbr: short(hN).slice(0, 14), name: hN, short: short(hN), record: H.n ? `${Math.round(H.r)} Elo` : null },
+          away: { abbr: short(aN, sport).slice(0, 14), name: aN, short: short(aN, sport), color: colorOf(aN), record: A.n ? `${Math.round(A.r)} Elo` : null }, home: { abbr: short(hN, sport).slice(0, 14), name: hN, short: short(hN, sport), color: colorOf(hN === aN ? hN + "x" : hN), record: H.n ? `${Math.round(H.r)} Elo` : null },
           spread: null, total: null, mlAway: toAm(m.px[0]), mlHome: toAm(m.px[1]), mlDraw: null,
           crowd: { pm: { away: m.px[0], home: m.px[1], vol: Math.round(+e.volume || 0), vol24: Math.round(+e.volume24hr || 0), mlVol: Math.round(m.vol), slug: e.slug }, pHome: 1 - mkA, pDraw: 0, money: Math.round(+e.volume || 0), money24: Math.round(+e.volume24hr || 0) },
           pred: { pHome: 1 - pA, pAway: pA, pDraw: 0, eloAway: Math.round(A.r), eloHome: Math.round(H.r), nA: A.n, nH: H.n, wr: w },
-          why: [wild && enough ? `Elo (${short(aN)} ${Math.round(eA * 100)}%) and the crowd (${Math.round(mkA * 100)}%) disagree too much to trust — EdgeBot follows the crowd here.` : enough ? `Elo ratings from ${A.n}+${H.n} verified ${G.label.toLowerCase()} results: ${short(aN)} ${Math.round(A.r)} vs ${short(hN)} ${Math.round(H.r)} → ${Math.round(eA * 100)}% for ${short(aN)}.` : `Not enough to go on yet (${A.n} and ${H.n} verified results, 15+ needed; $${Math.round(vol).toLocaleString()} traded, $2,000+ needed), so EdgeBot follows the crowd’s price.`,
-            `Crowd price (Polymarket, $${Math.round(+e.volume || 0).toLocaleString()} traded): ${short(aN)} ${Math.round(mkA * 100)}%.`] };
+          why: [wild && enough ? `Elo (${short(aN, sport)} ${Math.round(eA * 100)}%) and the crowd (${Math.round(mkA * 100)}%) disagree too much to trust — EdgeBot follows the crowd here.` : enough ? `Elo ratings from ${A.n}+${H.n} verified ${G.label.toLowerCase()} results: ${short(aN, sport)} ${Math.round(A.r)} vs ${short(hN, sport)} ${Math.round(H.r)} → ${Math.round(eA * 100)}% for ${short(aN, sport)}.` : `Not enough to go on yet (${A.n} and ${H.n} verified results, 15+ needed; $${Math.round(vol).toLocaleString()} traded, $2,000+ needed), so EdgeBot follows the crowd’s price.`,
+            `Crowd price (Polymarket, $${Math.round(+e.volume || 0).toLocaleString()} traded): ${short(aN, sport)} ${Math.round(mkA * 100)}%.`] };
         // pick: real edge vs the price on either side
         let pick = null;
         for (const [side, p, px] of [["away", pA, m.px[0]], ["home", 1 - pA, m.px[1]]]) {
           const edge = p - px / s2, ev = p / px - 1;
           if (enough && edge >= 0.025 && ev > 0 && (!pick || ev > pick.ev)) {
             const kelly = ev / (1 / px - 1), stake = Math.max(0.25, Math.min(2, Math.round(kelly * 100 / 4 * 4) / 4));
-            pick = { market: "moneyline", side, label: `${short(side === "away" ? aN : hN)} to win`, line: null, price: toAm(px), p, pRaw: p, pMkt: px / s2, edge, ev, fair: toAm(p), lane: "BUILDING", tier: edge >= 0.045 && proven(sport) ? "Value" : "Lean", stake: Math.min(stake, proven(sport) ? 2 : 0.5) };
+            pick = { market: "moneyline", side, label: `${short(side === "away" ? aN : hN, sport)} to win`, line: null, price: toAm(px), p, pRaw: p, pMkt: px / s2, edge, ev, fair: toAm(p), lane: "BUILDING", tier: edge >= 0.045 && proven(sport) ? "Value" : "Lean", stake: Math.min(stake, proven(sport) ? 2 : 0.5) };
           }
         }
         if (pick) { g.pick = pick; g.why.push(`${pick.label}: ${Math.round(pick.p * 100)}% vs ${Math.round(pick.pMkt * 100)}% priced in.`); }

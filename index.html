@@ -952,13 +952,13 @@ function crowdBlock(g) {
   return `<h2 class="sec"><span>Where the money is</span><small>${esc(g.away.abbr)} · ${esc(g.home.abbr)} win chance</small></h2>
     <div class="card" style="padding:4px 14px 10px">
       ${row("EdgeBot", e?.pHome, e?.pAway, e?.pDraw)}
-      ${row("Sportsbooks", b, bA, b != null && bd ? 1 - b - bA : 0, "DraftKings moneyline, vig removed")}
+      ${g.kind === "match" ? "" : row("Sportsbooks", b, bA, b != null && bd ? 1 - b - bA : 0, "DraftKings moneyline, vig removed")}
       ${pm ? row("Polymarket", pm[0], pm[1], pm[2], `${money(c.pm.vol)} traded${c.pm.vol24 ? ` · ${money(c.pm.vol24)} in 24h` : ""}${c.pm.spread ? ` · ${esc(c.pm.spread.label)} ${pct(c.pm.spread.favP)}` : ""}${c.pm.total ? ` · over ${c.pm.total.line} ${pct(c.pm.total.over)}` : ""}`) : ""}
       ${k ? row("Kalshi", k[0], k[1], k[2], `${money(c.k.vol)} traded${c.k.vol24 ? ` · ${money(c.k.vol24)} in 24h` : ""}${c.k.homePrev ? ` · ${esc(g.home.abbr)} was ${pct(c.k.homePrev)} yesterday` : ""}`) : ""}
       ${ep ? row("ESPN model", ep.home, ep.away, Math.max(0, 1 - ep.home - ep.away), "ESPN Matchup Predictor") : ""}
       ${vb ? `<p class="note" style="margin:8px 0 0;padding:0"><span class="vsbook">Crowd vs books</span> The prediction-market crowd rates ${esc(vb.team.short || vb.team.abbr)} ${Math.round(vb.pts * 100)} points higher than the sportsbooks do.</p>` : ""}
       ${g.ats && (g.ats.home || g.ats.away) ? `<p class="note" style="margin:8px 0 0;padding:0">Against the spread this season: ${esc(g.away.abbr)} ${esc(g.ats.away || "—")} · ${esc(g.home.abbr)} ${esc(g.ats.home || "—")}</p>` : ""}
-      <p class="note" style="margin:8px 0 0;padding:0;color:var(--dim)">Crowd and ESPN numbers are shown for context and logged with each pick, but don’t move EdgeBot’s picks until they prove they help.</p>
+      <p class="note" style="margin:8px 0 0;padding:0;color:var(--dim)">${g.kind === "match" ? "For matchups EdgeBot starts from the crowd’s price and adjusts it by Elo ratings learned from verified results (25% weight, only with 15+ results per side)." : "Crowd and ESPN numbers are shown for context and logged with each pick, but don’t move EdgeBot’s picks until they prove they help."}</p>
     </div>`;
 }
 async function sharePick(g) {
@@ -979,9 +979,9 @@ function openGame(id) {
   const html = `<div class="sheet-bg" data-close="1"><div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(g.away.name)} at ${esc(g.home.name)}">
     <div class="banner" style="--ca:${ca}55;--ch:${ch}55"><div class="grab"></div><button class="close" data-close="1" aria-label="Close">✕</button>
       <div class="note" style="text-align:center;margin:0">${esc(sportLabel(g.sport))} · ${esc(dayLabel(g.start))} ${esc(timeOf(g.start))}${g.detail && !/^\d/.test(g.detail) && g.status !== "pre" ? ` · ${esc(g.detail)}` : ""}</div>
-      <div class="vs"><button class="t" data-team="${g.sport}|${esc(g.away.abbr)}">${mark(g.away, g.sport, true)}<b>${esc(g.away.short || g.away.name)}</b><small>${esc(g.away.record || "away")} · team page ›</small></button>
+      <div class="vs"><button class="t" ${g.kind === "match" ? 'style="cursor:default"' : `data-team="${g.sport}|${esc(g.away.abbr)}"`}>${mark(g.away, g.sport, true)}<b>${esc(g.away.short || g.away.name)}</b><small>${esc(g.away.record || "away")}${g.kind === "match" ? "" : " · team page ›"}</small></button>
         <div class="mid">${fin ? `<big class="num">${g.away.score}–${g.home.score}</big>Final` : s ? `<big class="num">${Math.round(s.muA)}–${Math.round(s.muH)}</big>projected` : "vs"}</div>
-        <button class="t" data-team="${g.sport}|${esc(g.home.abbr)}">${mark(g.home, g.sport, true)}<b>${esc(g.home.short || g.home.name)}</b><small>${esc(g.home.record || "home")} · team page ›</small></button></div>
+        <button class="t" ${g.kind === "match" ? 'style="cursor:default"' : `data-team="${g.sport}|${esc(g.home.abbr)}"`}>${mark(g.home, g.sport, true)}<b>${esc(g.home.short || g.home.name)}</b><small>${esc(g.home.record || "home")}${g.kind === "match" ? "" : " · team page ›"}</small></button></div>
     </div>
     <div class="sheet-body">
     ${pk ? `<div class="callout">${tierPill(pk.tier)} <b>${esc(pk.label)}</b> <span class="num">${am(pk.price)}</span>
