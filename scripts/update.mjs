@@ -396,7 +396,7 @@ async function playersCycle({ games, archive, ratings, injuryBooks, nflMeta }) {
   // 1) NBA box-score archive (this season first, then last season, newest first; capped per run)
   const box = readJson("state/players/NBA.json", []), done = new Set(readJson("state/players/NBA-done.json", []));
   const todo = [...(archive.NBA || [])].filter((x) => !done.has(x.id)).sort((a, b) => (a.d >= SEASON_START.NBA) - (b.d >= SEASON_START.NBA) || (a.d < b.d ? 1 : -1))
-    .sort((a, b) => (b.d >= SEASON_START.NBA) - (a.d >= SEASON_START.NBA)).slice(0, 80);
+    .sort((a, b) => (b.d >= SEASON_START.NBA) - (a.d >= SEASON_START.NBA)).slice(0, 160);
   for (let i = 0; i < todo.length; i += 6) await Promise.all(todo.slice(i, i + 6).map(async (x) => {
     const d = await getJson(`https://site.api.espn.com/apis/site/v2/sports/basketball/nba/summary?event=${x.id.split(":")[1]}`);
     if (!d?.boxscore) return; box.push(...PL.parseNbaBox(d, x.id, x.d)); done.add(x.id);
@@ -418,7 +418,8 @@ async function playersCycle({ games, archive, ratings, injuryBooks, nflMeta }) {
   for (const r of [...box].sort((a, b) => (a.d < b.d ? -1 : 1))) { const L = hist.NBA.get(r.id) || []; L.push(r); hist.NBA.set(r.id, L); }
   for (const r of [...nfl].sort((a, b) => a.season - b.season || a.week - b.week)) { const L = hist.NFL.get(r.id) || []; L.push(r); hist.NFL.set(r.id, L); }
   // 3) prop lines for upcoming games → projections → picks
-  const ledger = readJson("playerLedger.json", []), have = new Set(ledger.map((r) => r.id)), props = [], unmatched = new Set();
+  // v2 player picks only (the first run used unbalanced lines and too little history — never counted)
+  const ledger = readJson("playerLedger.json", []).filter((r) => r.mv === 2), have = new Set(ledger.map((r) => r.id)), props = [], unmatched = new Set();
   const upcoming = [...games.values()].filter((g) => g.status === "pre" && ((g.sport === "NBA" && Date.parse(g.start) < NOW + 36 * 3600e3) || (g.sport === "NFL" && Date.parse(g.start) < NOW + 5 * 864e5)) && Date.parse(g.start) > NOW);
   const R = ratings.NBA, half = R ? R.lg.avgT / 2 : 114;
   for (let i = 0; i < upcoming.length; i += 4) await Promise.all(upcoming.slice(i, i + 4).map(async (g) => {
@@ -430,12 +431,15 @@ async function playersCycle({ games, archive, ratings, injuryBooks, nflMeta }) {
       const opp = side === "home" ? g.away.abbr : g.home.abbr, status = injured.get(lastRow.n);
       if (status === "OUT" || status === "DOUBTFUL") continue;
       const oppT = g.sport === "NBA" && R ? R.teams[opp] : null, oppFactor = oppT ? 1 + oppT.d / half : 1;
-      const proj = PL.project(g.sport, H, L.stat, { oppFactor }); if (!proj) continue;
+      const own = PL.project(g.sport, H, L.stat, { oppFactor }); if (!own) continue;
+      // sanity: if EdgeBot's own number is miles from the line, the line knows something (role, injury) — no pick
+      const wild = Math.abs(own.mean - L.line) > 1.6 * own.sd;
+      const proj = PL.blendWithLine(own, L.line);
       const pH = PL.pHigher(proj, L.line), pickSide = pH >= 0.5 ? "higher" : "lower", p = Math.max(pH, 1 - pH);
-      const tier = proj.nCur >= 1 || g.sport === "NBA" ? PL.propTier(p) : null;
+      const tier = wild ? null : PL.propTier(p);
       const row = { id: `${g.id}~${pid}~${L.stat}`, gameId: g.id, sport: g.sport, start: g.start, pid, espnId: L.pid, name: lastRow.n, pos: lastRow.pos, team, opp, home: side === "home",
         head: g.sport === "NBA" ? `https://a.espncdn.com/i/headshots/nba/players/full/${L.pid}.png` : lastRow.head || `https://a.espncdn.com/i/headshots/nfl/players/full/${L.pid}.png`,
-        stat: L.stat, label: PL.STAT_LABEL[L.stat] || L.stat, line: L.line, proj: +proj.mean.toFixed(2), sd: +proj.sd.toFixed(2), pHigher: +pH.toFixed(4), side: pickSide, p: +p.toFixed(4), tier,
+        stat: L.stat, label: PL.STAT_LABEL[L.stat] || L.stat, line: L.line, proj: +proj.mean.toFixed(2), own: +own.mean.toFixed(2), wild, mv: 2, sd: +proj.sd.toFixed(2), pHigher: +pH.toFixed(4), side: pickSide, p: +p.toFixed(4), tier,
         games: proj.n, gamesThisSeason: proj.nCur, minutes: proj.min ? +proj.min.toFixed(1) : null, last: proj.last, status: status || null, oppFactor: +oppFactor.toFixed(3) };
       props.push(row);
       if (tier && !have.has(row.id) && (!status || status === "DAY_TO_DAY")) { ledger.push({ ...row, status: "open", savedAt: now.toISOString() }); have.add(row.id); }

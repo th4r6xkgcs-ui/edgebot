@@ -67,27 +67,29 @@ export async function propLines(getJson, sport, path, eventId) {
     const type = it.type?.name || "", pid = (it.athlete?.$ref || "").match(/athletes\/(\d+|[\w-]+)\?/)?.[1]; if (!pid) continue;
     let stat = sport === "NBA" ? NBA_PROP[type] : (NFL_PROP.find(([re]) => re.test(type)) || [])[1];
     if (!stat) { unmatched.add(type); continue; }
-    if (sport === "NFL" && /longest|first|1st|anytime|alt/i.test(type)) continue;
+    if (/milestone|longest|first|1st|anytime|alt|quarter|half|2 or more|exact/i.test(type)) continue;
     const line = +(it.current?.target?.value ?? it.odds?.total?.value); if (!isFinite(line)) continue;
     const k = `${pid}|${stat}`, e = by.get(k) || { pid, stat, lines: [] };
     e.lines.push({ line, price: +(it.odds?.american?.value ?? NaN) }); by.set(k, e);
   }
-  // main line = the most-quoted value (over + under share it); ties → the one priced closest to -110
+  // main line = the one whose prices are most balanced (both sides near -110). Alternate lines are lopsided (-400/+250).
   const out = [];
   for (const e of by.values()) {
-    const counts = new Map(); for (const l of e.lines) counts.set(l.line, (counts.get(l.line) || 0) + 1);
-    const best = [...counts.entries()].sort((a, b) => b[1] - a[1] || closeness(e.lines, a[0]) - closeness(e.lines, b[0]))[0];
-    out.push({ pid: e.pid, stat: e.stat, line: best[0], alts: counts.size });
+    const byLine = new Map(); for (const l of e.lines) { const L = byLine.get(l.line) || []; if (isFinite(l.price)) L.push(l.price); byLine.set(l.line, L); }
+    const toProb = (a) => a < 0 ? -a / (-a + 100) : 100 / (a + 100);
+    const scored = [...byLine.entries()].map(([line, prices]) => ({ line, n: prices.length, dev: prices.length ? Math.max(...prices.map((x) => Math.abs(toProb(x) - 0.524))) : 1 }))
+      .filter((x) => x.dev < 0.14).sort((a, b) => a.dev - b.dev || b.n - a.n);
+    if (!scored.length) continue;
+    out.push({ pid: e.pid, stat: e.stat, line: scored[0].line, alts: byLine.size, balanced: +scored[0].dev.toFixed(3) });
   }
   return { lines: out, unmatched: [...unmatched].slice(0, 40) };
 }
-const closeness = (lines, v) => Math.min(...lines.filter((l) => l.line === v).map((l) => isFinite(l.price) ? Math.abs(Math.abs(l.price) - 110) : 99));
 
 /* ------------------------------ projections ------------------------------ */
 /** Recency-weighted projection for one player and stat. NBA projects per-minute rates × expected minutes. */
 export function project(sport, history, stat, ctx = {}) {
   const rows = history.filter((r) => valueOf(r, stat) != null);
-  if (rows.length < 6) return null;
+  if (rows.length < (sport === "NBA" ? 15 : 8)) return null;
   const cur = rows.filter((r) => r.cur), w = rows.map((r, i) => { const age = rows.length - 1 - i; return (r.cur ? 1 : 0.35) * Math.pow(0.5, age / (r.cur ? 8 : 12)); });
   const W = w.reduce((a, b) => a + b, 0);
   let mean, sd;
@@ -106,6 +108,10 @@ export function project(sport, history, stat, ctx = {}) {
   sd = Math.max(sd, Math.sqrt(Math.max(0.5, mean)) * (COUNTY.has(stat) ? 1.05 : 0.8));
   return { mean, sd, n: rows.length, nCur: cur.length, last: rows.slice(-8).map((r) => valueOf(r, stat)) };
 }
+/** Weight on EdgeBot's own projection vs the prop line (the line already prices roles, injuries and news EdgeBot
+ *  can't see). A starting value until enough graded player picks exist to learn it, like the team blend. */
+export const PROP_WEIGHT = 0.4;
+export function blendWithLine(proj, line, w = PROP_WEIGHT) { return { ...proj, raw: proj.mean, mean: w * proj.mean + (1 - w) * line }; }
 /** P(stat > line) for a projection, with a half-unit continuity correction on whole-number stats. */
 export const pHigher = (proj, line) => 1 - ncdf((line + (Number.isInteger(line) ? 0.5 : 0) - proj.mean) / proj.sd);
 
