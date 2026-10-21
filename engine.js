@@ -8,11 +8,11 @@
     NBA:   { label: "NBA", path: "basketball/nba", sdM: 12.5, sdT: 18, hfa: 2.2, b2b: 1.5, k: 0.07, kt: 0.05, avgT: 228, dist: "normal", draw: false, ot: false },
     NFL:   { label: "NFL", path: "football/nfl", sdM: 12.7, sdT: 13.2, hfa: 1.5, k: 0.08, kt: 0.06, avgT: 45, dist: "normal", draw: false, ot: false },
     NCAAF: { label: "College FB", path: "football/college-football", sdM: 16, sdT: 16, hfa: 2.8, k: 0.10, kt: 0.06, avgT: 55, dist: "normal", draw: false, ot: false },
-    NHL:   { label: "NHL", path: "hockey/nhl", sdM: 2.4, sdT: 2.3, hfa: 0.2, b2b: 0.2, k: 0.05, kt: 0.03, avgT: 6.1, dist: "poisson", draw: false, ot: true },
-    MLB:   { label: "MLB", path: "baseball/mlb", sdM: 4.3, sdT: 4.4, hfa: 0.2, k: 0.04, kt: 0.03, avgT: 8.8, dist: "negbin", draw: false, ot: true },
+    NHL:   { label: "NHL", path: "hockey/nhl", sdM: 2.4, sdT: 2.3, hfa: 0.2, b2b: 0.2, spreadNeedsPrice: true, k: 0.05, kt: 0.03, avgT: 6.1, dist: "poisson", draw: false, ot: true },
+    MLB:   { label: "MLB", path: "baseball/mlb", spreadNeedsPrice: true, sdM: 4.3, sdT: 4.4, hfa: 0.2, k: 0.04, kt: 0.03, avgT: 8.8, dist: "negbin", draw: false, ot: true },
     EPL:   { label: "Premier League", path: "soccer/eng.1", sdM: 1.7, sdT: 1.6, hfa: 0.3, k: 0.06, kt: 0.03, avgT: 2.9, dist: "poisson", draw: true, ot: false },
   };
-  const MODEL_VERSION = "edgebot-v2.2";
+  const MODEL_VERSION = "edgebot-v2.3";
   const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
   function erf(x) { const s = Math.sign(x); x = Math.abs(x); const t = 1 / (1 + 0.3275911 * x);
     const y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x); return s * y; }
@@ -146,6 +146,7 @@
     const S = SPORTS[g.sport], out = [], H = g.home.abbr, A = g.away.abbr;
     const push = (market, side, label, line, price, pRaw, pMkt) => {
       if (pRaw == null || pMkt == null) return;
+      if (price == null && market === "spread" && S.spreadNeedsPrice) return; // puck/run lines are rarely -110: no price, no pick
       const lane = lanes[`${g.sport}|${market}`], p = laneAdjust(pRaw, lane), dec = toDec(price ?? -110);
       const edge = p - pMkt, ev = p * dec - 1;
       out.push({ market, side, label, line, price: price ?? -110, p, pRaw, pMkt, edge, ev, fair: toAm(p), lane: laneState(lane) });
@@ -167,13 +168,18 @@
     if (g.spread != null) {
       const coverH = 1 - ncdf((-g.spread - pred.margin) / S.sdM);
       const fmt = (x) => (x > 0 ? "+" : "") + x;
-      push("spread", "home", `${H} ${fmt(g.spread)}`, g.spread, g.spreadPriceHome, coverH, 0.5);
-      push("spread", "away", `${A} ${fmt(-g.spread)}`, -g.spread, g.spreadPriceAway, 1 - coverH, 0.5);
+      const sp = g.spreadPriceHome != null && g.spreadPriceAway != null ? noVig([1 / toDec(g.spreadPriceHome), 1 / toDec(g.spreadPriceAway)]) : [0.5, 0.5];
+      // When the market's own spread prices exist, anchor to them like the moneyline (shift by our margin difference only).
+      const anchor = pred.marketM != null ? coverH - (1 - ncdf((-g.spread - pred.marketM) / S.sdM)) : 0, cH = g.spreadPriceHome != null && g.spreadPriceAway != null ? clamp(sp[0] + anchor, 0.01, 0.99) : coverH;
+      push("spread", "home", `${H} ${fmt(g.spread)}`, g.spread, g.spreadPriceHome, cH, sp[0]);
+      push("spread", "away", `${A} ${fmt(-g.spread)}`, -g.spread, g.spreadPriceAway, 1 - cH, sp[1]);
     }
     if (g.total != null) {
       const over = 1 - ncdf((g.total - pred.total) / S.sdT);
-      push("total", "over", `Over ${g.total}`, g.total, g.overPrice, over, 0.5);
-      push("total", "under", `Under ${g.total}`, g.total, g.underPrice, 1 - over, 0.5);
+      const tp = g.overPrice != null && g.underPrice != null ? noVig([1 / toDec(g.overPrice), 1 / toDec(g.underPrice)]) : [0.5, 0.5];
+      const tAnchor = pred.marketT != null ? over - (1 - ncdf((g.total - pred.marketT) / S.sdT)) : 0, o2 = g.overPrice != null && g.underPrice != null ? clamp(tp[0] + tAnchor, 0.01, 0.99) : over;
+      push("total", "over", `Over ${g.total}`, g.total, g.overPrice, o2, tp[0]);
+      push("total", "under", `Under ${g.total}`, g.total, g.underPrice, 1 - o2, tp[1]);
     }
     return out;
   }
@@ -196,7 +202,7 @@
     return cs[0] || null;
   }
   function why(g, pred, pick) {
-    const S = SPORTS[g.sport], r = [], H = g.home.abbr, A = g.away.abbr, f1 = (x) => (Math.round(x * 10) / 10).toString();
+    const S = SPORTS[g.sport], r = [], H = g.home.abbr, A = g.away.abbr, f1 = (x) => (Math.round(x * 10) / 10).toFixed(1);
     if (pred.marketM != null) r.push(`Market line: ${pred.marketM >= 0 ? H : A} by ${f1(Math.abs(pred.marketM))}.`);
     if (pred.evidence >= 4) r.push(`EdgeBot ratings (${pred.homeRating.n}+${pred.awayRating.n} verified games): ${pred.ratingM >= 0 ? H : A} by ${f1(Math.abs(pred.ratingM))}, total ${f1(pred.ratingT)}.`);
     else r.push(`Ratings still building (${pred.evidence} verified games for the thinner team; 4+ needed), so the market sets this projection.`);

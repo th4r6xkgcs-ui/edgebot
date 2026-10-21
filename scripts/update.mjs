@@ -73,6 +73,7 @@ async function injuries(sport) {
   return out;
 }
 const num = (x) => { if (x === null || x === undefined || x === "") return null; const v = typeof x === "string" ? parseFloat(x.replace(/^EVEN$/i, "100")) : +x; return isFinite(v) ? v : null; };
+const oddsSamples = {}; // one raw odds object per sport, saved for debugging field names
 /** One ESPN event -> engine game (or null). */
 export function parseEvent(sport, ev) {
   const c = ev?.competitions?.[0]; if (!c) return null;
@@ -91,6 +92,11 @@ export function parseEvent(sport, ev) {
     g.mlHome = num(o.homeTeamOdds?.moneyLine) ?? num(o.moneyline?.home?.close?.odds) ?? num(o.moneyline?.home?.open?.odds);
     g.mlAway = num(o.awayTeamOdds?.moneyLine) ?? num(o.moneyline?.away?.close?.odds) ?? num(o.moneyline?.away?.open?.odds);
     g.mlDraw = num(o.drawOdds?.moneyLine) ?? num(o.moneyline?.draw?.close?.odds);
+    g.spreadPriceHome = num(o.pointSpread?.home?.close?.odds) ?? num(o.homeTeamOdds?.spreadOdds) ?? null;
+    g.spreadPriceAway = num(o.pointSpread?.away?.close?.odds) ?? num(o.awayTeamOdds?.spreadOdds) ?? null;
+    g.overPrice = num(o.total?.over?.close?.odds) ?? num(o.overOdds) ?? null;
+    g.underPrice = num(o.total?.under?.close?.odds) ?? num(o.underOdds) ?? null;
+    if (!oddsSamples[sport]) oddsSamples[sport] = o;
     if (sport !== "EPL") {
       const homeLine = num(o.pointSpread?.home?.close?.line) ?? num(o.pointSpread?.home?.open?.line);
       if (homeLine != null) g.spread = homeLine;
@@ -127,9 +133,13 @@ async function main() {
   }
   // last season (preseason ratings): walk backwards from the season's end, a capped number of dates per run
   const history = readJson("state/history.json", {}); let histBudget = HISTORY_REQUESTS_PER_RUN;
-  for (const [s, [from, to]] of Object.entries(PREV_SEASON)) {
-    let d = history[s] ? addDays(history[s], -1) : to;
-    while (histBudget > 0 && d >= from) { jobs.push([s, d, true]); history[s] = d; d = addDays(d, -1); histBudget--; }
+  // round-robin so every league gets its preseason history at the same pace
+  for (let progressed = true; histBudget > 0 && progressed;) {
+    progressed = false;
+    for (const [s, [from, to]] of Object.entries(PREV_SEASON)) {
+      const d = history[s] ? addDays(history[s], -1) : to;
+      if (histBudget > 0 && d >= from) { jobs.push([s, d, true]); history[s] = d; histBudget--; progressed = true; }
+    }
   }
   const games = new Map();
   for (let i = 0; i < jobs.length; i += 4) {
@@ -156,15 +166,18 @@ async function main() {
   // ESPN drops odds once a game is final: remember each game's last pregame line (≈ closing line) and re-attach it.
   const lines = readJson("state/lines.json", {});
   for (const g of games.values()) {
-    if (g.status === "pre" && (g.spread != null || g.mlHome != null || g.total != null)) lines[g.id] = { spread: g.spread, total: g.total, mlHome: g.mlHome, mlAway: g.mlAway, mlDraw: g.mlDraw, start: g.start, at: now.toISOString() };
-    else if (g.status !== "pre" && lines[g.id] && g.spread == null && g.mlHome == null && g.total == null) { const L = lines[g.id]; Object.assign(g, { spread: L.spread, total: L.total, mlHome: L.mlHome, mlAway: L.mlAway, mlDraw: L.mlDraw, closingLine: true }); }
+    const PRICE_KEYS = ["spread", "total", "mlHome", "mlAway", "mlDraw", "spreadPriceHome", "spreadPriceAway", "overPrice", "underPrice"];
+    if (g.status === "pre" && (g.spread != null || g.mlHome != null || g.total != null)) lines[g.id] = { ...Object.fromEntries(PRICE_KEYS.map((k) => [k, g[k] ?? null])), start: g.start, at: now.toISOString() };
+    else if (g.status !== "pre" && lines[g.id] && g.spread == null && g.mlHome == null && g.total == null) { const L = lines[g.id]; for (const k of PRICE_KEYS) g[k] = L[k] ?? null; g.closingLine = true; }
   }
   for (const [id, L] of Object.entries(lines)) if (Date.parse(L.start) < NOW - 30 * 864e5) delete lines[id];
   writeJson("state/lines.json", lines);
   // add this run's verified finals (with their stored closing lines) to the archive
+  let newFinals = 0;
+  const archIdx = Object.fromEntries(Object.entries(archive).map(([sp, A]) => [sp, new Map(A.map((x, i) => [x.id, i]))]));
   for (const g of games.values()) if (g.status === "post" && g.home.score != null && g.away.score != null) {
-    const A = archive[g.sport], i = A.findIndex((x) => x.id === g.id), row = { id: g.id, d: g.start, h: g.home.abbr, a: g.away.abbr, hs: g.home.score, as: g.away.score, sp: g.spread, tot: g.total };
-    if (i < 0) A.push(row); else if (A[i].sp == null && row.sp != null) A[i] = { ...A[i], sp: row.sp, tot: row.tot };
+    const A = archive[g.sport], i = archIdx[g.sport].get(g.id), row = { id: g.id, d: g.start, h: g.home.abbr, a: g.away.abbr, hs: g.home.score, as: g.away.score, sp: g.spread, tot: g.total };
+    if (i == null) { archIdx[g.sport].set(g.id, A.length); A.push(row); newFinals++; } else if (A[i].sp == null && row.sp != null) A[i] = { ...A[i], sp: row.sp, tot: row.tot };
   }
   // context for upcoming games: rest days, NFL stadium/weather, injury reports
   const lastPlayed = {}; // sport|team -> sorted dates (ET) of games
@@ -206,14 +219,30 @@ async function main() {
   // picks whose game vanished or never finished: void after 4 days (never counted)
   for (const r of ledger) if (r.status === "open" && Date.parse(r.start) < NOW - 4 * 864e5) Object.assign(r, { status: "void", note: "No verified final found." });
   ledger.push(...out.newPicks);
+  // Closing-line value: once a game has started, compare each pick's number with the last pregame line.
+  // Beating the close consistently is the quickest honest sign of a real edge (far faster than W/L).
+  for (const r of ledger) {
+    if (r.clv || Date.parse(r.start) > NOW) continue;
+    const L = lines[r.gameId]; if (!L || Date.parse(L.at) < Date.parse(r.savedAt)) continue;
+    let pts = null, prob = null;
+    if (r.market === "spread" && L.spread != null) pts = r.line - (r.side === "home" ? L.spread : -L.spread);
+    if (r.market === "total" && L.total != null) pts = r.side === "over" ? L.total - r.line : r.line - L.total;
+    if (r.market === "moneyline" && L.mlHome != null && L.mlAway != null) {
+      const imp = [L.mlHome, L.mlAway, ...(L.mlDraw != null ? [L.mlDraw] : [])].map((m) => 1 / E.toDec(m)), s = imp.reduce((a, b) => a + b, 0);
+      const close = (r.side === "home" ? imp[0] : r.side === "away" ? imp[1] : imp[2] ?? NaN) / s;
+      if (isFinite(close)) prob = close - r.pMkt;
+    }
+    if (pts != null || prob != null) r.clv = { pts, prob, closedAt: L.at };
+  }
   const runs = readJson("runs.json", []);
   const archived = Object.fromEntries(Object.entries(archive).filter(([, A]) => A.length).map(([sp, A]) => [sp, A.length]));
   out.model.archive = archived; out.model.lastSummary.archive = archived;
+  out.log[0] = out.log[0].replace(/\d+ new finals learned/, `${newFinals} new finals archived`);
   const log = [...out.log, `Ratings rebuilt from ${Object.values(archived).reduce((x, y) => x + y, 0)} verified finals (${Object.entries(archived).map(([k, v]) => `${k} ${v}`).join(", ")}).`, `${requests} ESPN requests${failed ? `, ${failed} failed` : ""}.`];
   runs.unshift({ at: now.toISOString(), summary: out.model.lastSummary, log, failures: failures.slice(0, 5) }); runs.length = Math.min(runs.length, 60);
   for (const s of out.touched) writeJson(`ratings/${s}.json`, out.ratings[s]);
   for (const [sp, A] of Object.entries(archive)) if (A.length) writeJson(`state/archive/${sp}.json`, A.filter((x) => Date.parse(x.d) > NOW - 800 * 864e5));
-  writeJson("state/history.json", history);
+  writeJson("state/history.json", history); writeJson("debug/odds-samples.json", oddsSamples);
   writeJson("state/model.json", out.model); writeJson("state/fetched.json", fetched); writeJson("ledger.json", ledger); writeJson("runs.json", runs);
   writeJson("app.json", { at: now.toISOString(), slate: { at: now.toISOString(), games: out.slate }, model: out.model,
     ledger: [...ledger].sort((a, b) => (b.savedAt || "").localeCompare(a.savedAt || "")).slice(0, 800), runs: runs.slice(0, 15) });

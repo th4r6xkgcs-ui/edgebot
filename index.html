@@ -64,6 +64,10 @@ h2.sec{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--
 .pick .bar u{position:absolute;inset:0 auto 0 0;background:var(--amber)}
 .pick .foot{grid-column:1/-1;font-size:13px;color:var(--muted);display:flex;gap:12px;flex-wrap:wrap}
 .pick .foot em{font-style:normal;color:var(--fg)}
+.reason{grid-column:1/-1;margin:2px 0 0;font-size:13.5px;color:var(--fg);opacity:.85;line-height:1.35}
+.ctx{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 4px}
+.ctx span{font-size:12.5px;border:1px solid var(--line);border-radius:999px;padding:4px 10px;color:var(--muted)}
+.clv-good{color:var(--mint)}.clv-bad{color:var(--coral)}
 .feat{border-color:rgba(255,181,71,.45);background:linear-gradient(160deg,rgba(255,181,71,.10),var(--panel) 55%)}
 .star{border:0;background:transparent;width:44px;height:44px;margin:-8px -8px 0 0;color:var(--muted);font-size:20px}
 .star[aria-pressed="true"]{color:var(--amber)}
@@ -211,6 +215,18 @@ function sportChips(list, key = "sport") {
   return `<div class="chips" role="group" aria-label="Sport">${["ALL", ...sports, ...(key === "sport" ? ["SAVED"] : [])].map((s) =>
     `<button class="chip" data-${key}="${s}" aria-pressed="${state.sport === s}">${s === "ALL" ? "All" : s === "SAVED" ? "★ Saved" : sportLabel(s)}${s !== "ALL" && s !== "SAVED" ? `<b>${counts[s]}</b>` : ""}</button>`).join("")}</div>`;
 }
+/** The one line that best explains a pick: a tested situational effect first, then the rating view. */
+function topReason(g) {
+  const w = g.why || [];
+  return w.find((x) => /rest|wind|back-to-back/i.test(x)) || w.find((x) => /^EdgeBot ratings/.test(x)) || "";
+}
+function contextChips(g) {
+  const c = [];
+  if (g.restDays && g.restDays.home != null && g.restDays.away != null) c.push(`Rest ${g.away.abbr} ${g.restDays.away}d · ${g.home.abbr} ${g.restDays.home}d`);
+  if (g.weather) c.push(g.weather.outdoor ? `Wind ${Math.round(g.weather.windMph ?? 0)} mph${g.weather.tempF != null ? ` · ${Math.round(g.weather.tempF)}°F` : ""}` : `Roof: ${g.weather.roof}`);
+  const inj = g.injuries; if (inj) { const n = (x) => (x || []).filter((p) => p.status === "OUT" || p.status === "DOUBTFUL").length; if (n(inj.away) + n(inj.home)) c.push(`Out/doubtful: ${g.away.abbr} ${n(inj.away)} · ${g.home.abbr} ${n(inj.home)}`); }
+  return c;
+}
 function pickCard({ g, p, id }, feat) {
   const saved = state.saved.includes(id), s = sim(g);
   return `<article class="card ${feat ? "feat" : ""}"><div class="pick">
@@ -221,6 +237,7 @@ function pickCard({ g, p, id }, feat) {
       <span class="mu">${esc(g.away.name)} @ ${esc(g.home.name)}</span></button>
     <div class="right"><span class="pill t-${p.tier}">${p.tier}</span><span class="pct">${pct(p.p)}</span></div>
     <div class="bar" aria-hidden="true"><u style="width:${(p.p * 100).toFixed(1)}%"></u><i style="width:${(p.pMkt * 100).toFixed(1)}%"></i></div>
+    ${topReason(g) ? `<p class="reason">${esc(topReason(g))}</p>` : ""}
     <div class="foot"><span>Market <em class="num">${pct(p.pMkt)}</em></span><span>Edge <em class="num">${sgn(p.edge * 100)}%</em></span><span>Fair <em class="num">${am(p.fair)}</em></span>${s && p.market !== "moneyline" ? `<span>Sim hits <em class="num">${pct(p.market === "total" ? (p.side === "over" ? s.over : s.under) / (s.over + s.under) : (p.side === "home" ? s.cover : 1 - s.cover - s.push) / (1 - s.push))}</em></span>` : ""}</div>
   </div></article>`;
 }
@@ -273,27 +290,37 @@ function viewRecord() {
   const w = dec.filter((r) => r.result === "W").length, units = g.reduce((a, r) => a + (r.units || 0), 0);
   const by = (key) => { const m = {}; for (const r of g) { const k = key(r); (m[k] ||= { w: 0, l: 0, p: 0, u: 0 }); r.result === "W" ? m[k].w++ : r.result === "L" ? m[k].l++ : m[k].p++; m[k].u += r.units || 0; } return m; };
   const tiers = by((r) => r.tier), lanes = state.model?.lanes || {}, blend = state.model?.blend || {};
+  const withClv = L.filter((r) => r.clv), beat = withClv.filter((r) => (r.clv.pts ?? 0) > 0 || (r.clv.prob ?? 0) > 0.002).length, lost = withClv.filter((r) => (r.clv.pts ?? 0) < 0 || (r.clv.prob ?? 0) < -0.002).length;
+  const avgPts = (() => { const xs = withClv.filter((r) => r.clv.pts != null).map((r) => r.clv.pts); return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null; })();
+  const avgProb = (() => { const xs = withClv.filter((r) => r.clv.prob != null).map((r) => r.clv.prob); return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null; })();
+  const voids = L.filter((r) => r.status === "void").length;
   const row = (k, v) => `<tr><td>${esc(k)}</td><td class="n">${v.w}–${v.l}${v.p ? "–" + v.p : ""}</td><td class="n">${v.w + v.l ? Math.round(100 * v.w / (v.w + v.l)) + "%" : "—"}</td><td class="n" style="color:${v.u >= 0 ? "var(--mint)" : "var(--coral)"}">${sgn(v.u)}u</td></tr>`;
   const laneRows = Object.entries(lanes).map(([k, v]) => { const st = E.laneState(v); return `<tr><td>${esc(k.replace("|", " · "))}</td><td class="n">${v.w}–${v.l}</td><td class="n">${v.n ? (v.brier / v.n).toFixed(3) : "—"}</td><td class="st-${st}">${st === "PROVEN" ? "Working" : st === "STRUGGLING" ? "Struggling" : "Building"}</td></tr>`; }).join("");
   return `<div class="strip">
-      <div class="stat"><b class="num">${w}–${dec.length - w}</b><span>all-time${g.length - dec.length ? ` · ${g.length - dec.length} push` : ""}</span></div>
+      <div class="stat"><b class="num">${w}–${dec.length - w}</b><span>all-time${g.length - dec.length ? ` · ${g.length - dec.length} push` : ""}${voids ? ` · ${voids} void` : ""}</span></div>
       <div class="stat"><b class="num">${dec.length ? Math.round(100 * w / dec.length) + "%" : "—"}</b><span>win rate</span></div>
       <div class="stat"><b class="num" style="color:${units >= 0 ? "var(--mint)" : "var(--coral)"}">${sgn(units)}u</b><span>${g.length ? `ROI ${sgn(100 * units / g.length)}%` : "no graded picks yet"}</span></div></div>
+    <h2 class="sec"><span>Beat the closing line?</span><span>${withClv.length} checked</span></h2>
+    <div class="card" style="padding:14px">${withClv.length ? `<div class="kv" style="margin:0">
+      <div><span>Got a better number than the close</span><b class="${beat >= lost ? "clv-good" : "clv-bad"}">${beat} of ${withClv.length} (${Math.round(100 * beat / withClv.length)}%)</b></div>
+      ${avgPts != null ? `<div><span>Average line value (spreads & totals)</span><b class="${avgPts >= 0 ? "clv-good" : "clv-bad"}">${sgn(avgPts, 2)} pts</b></div>` : ""}
+      ${avgProb != null ? `<div><span>Average price value (moneylines)</span><b class="${avgProb >= 0 ? "clv-good" : "clv-bad"}">${sgn(avgProb * 100, 1)}%</b></div>` : ""}
+    </div>` : ""}<p class="note" style="margin:${withClv.length ? "10px" : "0"} 0 0">Closing-line value is the earliest honest test of an edge: if the market keeps moving toward EdgeBot’s picks before kickoff, the picks are likely sharp — long before wins and losses settle it.</p></div>
     <h2 class="sec"><span>By strength</span></h2>
     <div class="card scroll-x"><table class="lanes"><thead><tr><th>Tier</th><th>W–L</th><th>Win</th><th>Units</th></tr></thead><tbody>${["Strong", "Value", "Lean"].filter((t) => tiers[t]).map((t) => row(t, tiers[t])).join("") || `<tr><td colspan="4" class="note">Grades appear after games with saved picks go final.</td></tr>`}</tbody></table></div>
     <h2 class="sec"><span>Which models are working</span></h2>
     <div class="card scroll-x"><table class="lanes"><thead><tr><th>Lane</th><th>W–L</th><th>Brier</th><th>State</th></tr></thead><tbody>${laneRows || `<tr><td colspan="4" class="note">Each sport × market is tracked separately. “Working” needs 30+ graded picks and beats the market’s own forecast.</td></tr>`}</tbody></table></div>
     <h2 class="sec"><span>What EdgeBot has learned</span></h2>
     <div class="card scroll-x"><table class="lanes"><thead><tr><th>Sport</th><th>Finals</th><th>Teams</th><th>Trust in own ratings</th></tr></thead><tbody>${Object.entries(blend).map(([s, b]) => `<tr><td>${esc(sportLabel(s))}</td><td class="n">${b.finals}</td><td class="n">${b.teams}</td><td class="n">${Math.round(b.weight * 100)}% <span class="note">(${b.n} scored)</span></td></tr>`).join("") || `<tr><td colspan="4" class="note">Learning starts with the first verified finals.</td></tr>`}</tbody></table></div>
-    <p class="note">“Trust” is learned: EdgeBot compares how close its own ratings and the betting market came on recent finals, and leans on whichever has been more accurate (capped at 55%).</p>
+    <p class="note">“Trust” is learned from finals scored against their closing line: it’s the weight on EdgeBot’s ratings that would have predicted those results best, shrunk toward zero and capped at 55%. Below 30 scored finals a sport uses a 15% starting weight. NFL measures ≈0% on 600 games — the NFL market is very sharp — so NFL picks come only from tested effects (wind, rest).</p>
     <h2 class="sec"><span>Recent results</span></h2>
-    <div class="card">${g.slice(0, 25).map((r) => `<div class="game" style="cursor:default"><time>${esc(when(r.start))}<br>${esc(r.sport)}</time><span class="tm"><span>${esc(r.label)} <span class="num" style="color:var(--muted)">${am(r.price)}</span></span><small>${esc(r.final || r.matchup)}</small></span><span class="wp"><b class="${r.result}">${r.result === "W" ? "Win" : r.result === "L" ? "Loss" : "Push"}</b>${sgn(r.units || 0, 2)}u</span></div>`).join("") || `<div class="empty">No graded picks yet.</div>`}</div>`;
+    <div class="card">${g.slice(0, 25).map((r) => `<div class="game" style="cursor:default"><time>${esc(when(r.start))}<br>${esc(r.sport)}</time><span class="tm"><span>${esc(r.label)} <span class="num" style="color:var(--muted)">${am(r.price)}</span></span><small>${esc(r.final || r.matchup)}${r.clv ? ` · <span class="${(r.clv.pts ?? r.clv.prob) >= 0 ? "clv-good" : "clv-bad"}">CLV ${r.clv.pts != null ? sgn(r.clv.pts, 1) + " pts" : sgn(r.clv.prob * 100, 1) + "%"}</span>` : ""}</small></span><span class="wp"><b class="${r.result}">${r.result === "W" ? "Win" : r.result === "L" ? "Loss" : "Push"}</b>${sgn(r.units || 0, 2)}u</span></div>`).join("") || `<div class="empty">No graded picks yet.</div>`}</div>`;
 }
 function viewHQ() {
   const m = state.model, last = state.runs[0], open = currentPicks().length;
   const agents = [
     ["Scout", "var(--sky)", m ? `Read ${m.lastSummary?.games ?? 0} games across ${(m.lastSummary?.sports || []).map(sportLabel).join(", ") || "—"}.` : "Waiting for the first run."],
-    ["Quant", "var(--violet)", m ? `${m.lastSummary?.finalsLearned ?? 0} new finals learned; ${Object.values(m.blend || {}).reduce((a, b) => a + b.teams, 0)} teams rated.` : "—"],
+    ["Quant", "var(--violet)", m ? `${Object.values(m.archive || {}).reduce((a, b) => a + b, 0).toLocaleString()} verified finals in the archive; ${Object.values(m.blend || {}).reduce((a, b) => a + b.teams, 0)} teams rated.` : "—"],
     ["Simulator", "var(--amber)", `${games().filter((g) => g.pred).length} games × 10,000 sims on this phone.`],
     ["Grader", "var(--mint)", m ? `${m.lastSummary?.graded ?? 0} picks graded last run.` : "—"],
     ["Coach", "var(--coral)", `${Object.keys(m?.lanes || {}).length} lanes calibrated; struggling lanes are capped at Lean.`],
@@ -338,6 +365,7 @@ function openGame(id) {
       ${s ? `<div><span>Margin range (80%)</span><b>${s.range[0]} to ${s.range[2] > 0 ? "+" : ""}${s.range[2]}</b></div>` : ""}
       ${s ? `<div><span>Most likely scores</span><b>${s.top.slice(0, 3).map((t) => t.s.split("-").reverse().join("–") + " " + pct1(t.p)).join(" · ")}</b></div>` : ""}
     </div>${distHtml}` : `<p class="note">No line or ratings yet for this game, so EdgeBot isn’t projecting it.</p>`}
+    ${contextChips(g).length ? `<div class="ctx">${contextChips(g).map((x) => `<span>${esc(x)}</span>`).join("")}</div>` : ""}
     <h2 class="sec"><span>Why</span></h2><ul class="why">${(g.why || []).map((x) => `<li>${esc(x)}</li>`).join("")}</ul>
     ${p && g.status !== "post" ? `<h2 class="sec"><span>Check your own line</span></h2>
       <div class="check"><label for="ck-spread">${esc(g.home.abbr)} spread<input id="ck-spread" inputmode="decimal" value="${g.spread ?? ""}" placeholder="-3.5"></label>
@@ -480,6 +508,7 @@ const hq = (() => {
 
 render();
 connect();
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
 setInterval(() => { if (!document.hidden) render(); }, 60000);
 })();
 </script>
