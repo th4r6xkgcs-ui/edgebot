@@ -81,13 +81,21 @@ async function main() {
   // backfill: walk back from the oldest fetched date toward season start, a few dates per run
   for (const s of ["NBA", "NHL", "NFL", "NCAAF", "EPL"]) {
     let d = fetched[s] ? addDays(fetched[s], -1) : addDays(today, -4), k = 0;
-    while (k < (s === "NFL" || s === "NCAAF" || s === "EPL" ? 7 : 4) && d >= SEASON_START[s]) { jobs.push([s, d, true]); fetched[s] = d; d = addDays(d, -1); k++; }
+    while (k < 70 && d >= SEASON_START[s]) { jobs.push([s, d, true]); fetched[s] = d; d = addDays(d, -1); k++; }
   }
   const games = new Map();
   for (let i = 0; i < jobs.length; i += 4) {
     const chunk = await Promise.all(jobs.slice(i, i + 4).map(([s, d]) => scoreboard(s, d)));
     for (const list of chunk) for (const g of list) { const prev = games.get(g.id); if (!prev || g.status === "post" || (prev.status !== "post" && g.spread != null)) games.set(g.id, g); }
   }
+  // ESPN drops odds once a game is final: remember each game's last pregame line (≈ closing line) and re-attach it.
+  const lines = readJson("state/lines.json", {});
+  for (const g of games.values()) {
+    if (g.status === "pre" && (g.spread != null || g.mlHome != null || g.total != null)) lines[g.id] = { spread: g.spread, total: g.total, mlHome: g.mlHome, mlAway: g.mlAway, mlDraw: g.mlDraw, start: g.start, at: now.toISOString() };
+    else if (g.status !== "pre" && lines[g.id] && g.spread == null && g.mlHome == null && g.total == null) { const L = lines[g.id]; Object.assign(g, { spread: L.spread, total: L.total, mlHome: L.mlHome, mlAway: L.mlAway, mlDraw: L.mlDraw, closingLine: true }); }
+  }
+  for (const [id, L] of Object.entries(lines)) if (Date.parse(L.start) < NOW - 30 * 864e5) delete lines[id];
+  writeJson("state/lines.json", lines);
   const ratings = {}; for (const s of Object.keys(E.SPORTS)) { const r = readJson(`ratings/${s}.json`, null); if (r) ratings[s] = r; }
   const model = readJson("state/model.json", {}), ledger = readJson("ledger.json", []);
   const out = E.runCycle({ now: now.toISOString(), games: [...games.values()], ratings, model, openLedger: ledger.filter((r) => r.status === "open"), ledgerIds: ledger.map((r) => r.id) });

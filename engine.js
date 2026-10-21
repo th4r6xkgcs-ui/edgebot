@@ -12,7 +12,7 @@
     MLB:   { label: "MLB", path: "baseball/mlb", sdM: 4.3, sdT: 4.4, hfa: 0.2, k: 0.04, kt: 0.03, avgT: 8.8, dist: "negbin", draw: false, ot: true },
     EPL:   { label: "Premier League", path: "soccer/eng.1", sdM: 1.7, sdT: 1.6, hfa: 0.3, k: 0.06, kt: 0.03, avgT: 2.9, dist: "poisson", draw: true, ot: false },
   };
-  const MODEL_VERSION = "edgebot-v2.0";
+  const MODEL_VERSION = "edgebot-v2.1";
   const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
   function erf(x) { const s = Math.sign(x); x = Math.abs(x); const t = 1 / (1 + 0.3275911 * x);
     const y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x); return s * y; }
@@ -26,9 +26,12 @@
   function emptyRatings(sport) { return { sport, teams: {}, lg: { avgT: SPORTS[sport].avgT, n: 0 }, seen: [], blend: { seM: 0, seR: 0, n: 0 } }; }
   const team = (R, abbr) => R.teams[abbr] || { r: 0, o: 0, d: 0, n: 0 };
   /** Weight on EdgeBot's own ratings (vs market), learned from squared errors on recent finals. */
+  /** Starting trust in EdgeBot's own ratings before enough finals have been scored against the closing line. */
+  const PRIOR_WEIGHT = 0.15;
   function ratingWeight(R) {
-    const b = R.blend || { n: 0 }; if (b.n < 15) return 0.15 * b.n / 15;
-    return clamp(b.seM / (b.seM + b.seR), 0.1, 0.55);
+    const b = R.blend || { n: 0 }; if (b.n < 15) return PRIOR_WEIGHT;
+    const learned = clamp(b.seM / (b.seM + b.seR), 0.1, 0.55);
+    return b.n >= 40 ? learned : PRIOR_WEIGHT + (learned - PRIOR_WEIGHT) * (b.n - 15) / 25;
   }
   function invNorm(p) { // Acklam's rational approximation
     const a = [-39.6968302866538, 220.946098424521, -275.928510446969, 138.357751867269, -30.6647980661472, 2.50662827745924],
@@ -57,7 +60,7 @@
   function predict(g, R) {
     const S = SPORTS[g.sport], h = team(R, g.home.abbr), a = team(R, g.away.abbr);
     const ratingM = h.r - a.r + S.hfa, ratingT = R.lg.avgT + h.o + a.d + a.o + h.d;
-    const evidence = Math.min(h.n, a.n), wr0 = ratingWeight(R), wr = evidence < 3 ? wr0 * evidence / 3 : wr0;
+    const evidence = Math.min(h.n, a.n), wr0 = ratingWeight(R), wr = evidence < 6 ? 0 : evidence < 10 ? wr0 * (evidence - 5) / 5 : wr0;
     const mM = marketMargin(g), mT = g.total;
     const margin = mM == null ? (evidence >= 3 ? ratingM : null) : (1 - wr) * mM + wr * ratingM;
     const total = mT == null ? (evidence >= 3 ? ratingT : null) : (1 - wr) * mT + wr * ratingT;
@@ -65,7 +68,7 @@
     const pHome = S.draw ? 1 - ncdf((0.5 - margin) / S.sdM) : 1 - ncdf(-margin / S.sdM);
     const pDraw = S.draw ? ncdf((0.5 - margin) / S.sdM) - ncdf((-0.5 - margin) / S.sdM) : 0;
     return { margin, total: total ?? R.lg.avgT, pHome, pAway: 1 - pHome - pDraw, pDraw, wr, ratingM, ratingT, marketM: mM, marketT: mT, evidence,
-      homeRating: h, awayRating: a, version: MODEL_VERSION };
+      homeRating: h, awayRating: a, blendN: (R.blend || {}).n || 0, version: MODEL_VERSION };
   }
   /** Learn from one verified final. Idempotent via R.seen. */
   function learn(R, g) {
@@ -73,7 +76,7 @@
     const S = SPORTS[g.sport], pred = predict(g, R), act = g.home.score - g.away.score, actT = g.home.score + g.away.score;
     const h = { ...team(R, g.home.abbr) }, a = { ...team(R, g.away.abbr) };
     const expM = h.r - a.r + S.hfa, expT = R.lg.avgT + h.o + a.d + a.o + h.d, err = clamp(act - expM, -3 * S.sdM, 3 * S.sdM), errT = clamp(actT - expT, -3 * S.sdT, 3 * S.sdT);
-    if (pred && pred.marketM != null && h.n >= 3 && a.n >= 3) {
+    if (pred && pred.marketM != null && h.n >= 6 && a.n >= 6) {
       R.blend.seM += (act - pred.marketM) ** 2; R.blend.seR += (act - expM) ** 2; R.blend.n++;
       if (R.blend.n > 400) { R.blend.seM *= 400 / R.blend.n; R.blend.seR *= 400 / R.blend.n; R.blend.n = 400; }
     }
@@ -151,8 +154,8 @@
     const S = SPORTS[g.sport], r = [], H = g.home.abbr, A = g.away.abbr, f1 = (x) => (Math.round(x * 10) / 10).toString();
     if (pred.marketM != null) r.push(`Market line: ${pred.marketM >= 0 ? H : A} by ${f1(Math.abs(pred.marketM))}.`);
     if (pred.evidence >= 3) r.push(`EdgeBot ratings (${pred.homeRating.n}+${pred.awayRating.n} verified games): ${pred.ratingM >= 0 ? H : A} by ${f1(Math.abs(pred.ratingM))}, total ${f1(pred.ratingT)}.`);
-    else r.push(`Ratings still building (${pred.evidence} verified games for the thinner team), so the market carries most of the weight.`);
-    r.push(`Blend: ${Math.round(pred.wr * 100)}% EdgeBot ratings, ${Math.round((1 - pred.wr) * 100)}% market — learned from which predicted recent ${S.label} finals better.`);
+    else r.push(`Ratings still building (${pred.evidence} verified games for the thinner team; 6+ needed), so the market sets this projection.`);
+    r.push(`Blend: ${Math.round(pred.wr * 100)}% EdgeBot ratings, ${Math.round((1 - pred.wr) * 100)}% market. ${(R0 => R0)(pred.blendN) >= 15 ? `Set from ${pred.blendN} ${S.label} finals scored against the closing line.` : `Starting weight until 15 ${S.label} finals are scored against the closing line (${pred.blendN || 0} so far).`}`);
     if (pick) r.push(`${pick.label}: ${Math.round(pick.p * 100)}% vs ${Math.round(pick.pMkt * 100)}% priced in (fair odds ${pick.fair > 0 ? "+" : ""}${pick.fair}).`);
     return r;
   }
