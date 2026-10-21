@@ -108,7 +108,7 @@ h2.sec small{letter-spacing:0;text-transform:none;font-weight:500;font-size:12px
 .ring .v b{font:700 19px var(--mono)}
 .ring .v small{display:block;font-size:10px;color:var(--muted);margin-top:3px;letter-spacing:.04em}
 .tier{display:inline-flex;align-items:center;border-radius:999px;padding:3px 10px;font-size:11.5px;font-weight:700;letter-spacing:.03em}
-.t-Strong{background:rgba(69,224,174,.15);color:var(--mint)}.t-Value{background:rgba(255,181,71,.15);color:var(--amber)}.t-Lean{background:rgba(140,152,180,.14);color:var(--muted)}
+.t-Strong{background:rgba(255,90,78,.18);color:#FF7A6E;box-shadow:0 0 14px rgba(255,90,78,.25)}.t-Value{background:rgba(255,138,61,.16);color:#FF9F5A}.t-Lean{background:rgba(255,207,133,.12);color:#FFCF85}
 .reason{margin:12px 16px 0 18px;font-size:13.5px;line-height:1.4;color:#C9D1E4;padding:9px 11px;border-radius:var(--r-sm);background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.04)}
 .stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;margin:12px 0 0;border-top:1px solid var(--line)}
 .stats div{padding:9px 6px 11px;text-align:center;border-left:1px solid var(--line);min-width:0}
@@ -302,6 +302,10 @@ const timeOf = (iso) => new Date(iso).toLocaleTimeString([], { hour: "numeric", 
 function when(iso) { const l = dayLabel(iso); return (l === "Today" ? "" : l.replace(/,.*$/, "").replace(/^(\w{3})\w+/, "$1") + " ") + timeOf(iso); }
 function ago(iso) { if (!iso) return "never"; const m = Math.round((Date.now() - Date.parse(iso)) / 6e4); return m < 1 ? "just now" : m < 60 ? m + "m ago" : m < 1440 ? Math.round(m / 60) + "h ago" : Math.round(m / 1440) + "d ago"; }
 const sportLabel = (s) => SP[s]?.label || s;
+/** Pick strength as shown to people: a heat scale. Data keeps the internal names (Lean / Value / Strong). */
+const TIER = { Lean: { name: "Warm", icon: "🔥" }, Value: { name: "Hot", icon: "🔥🔥" }, Strong: { name: "Fire", icon: "🔥🔥🔥" } };
+const tierName = (t) => TIER[t]?.name || t;
+const tierPill = (t, small) => `<span class="tier t-${t}"${small ? ' style="padding:1px 8px;font-size:10.5px"' : ""}>${TIER[t]?.icon || ""} ${esc(tierName(t))}</span>`;
 const SPORT_DOT = { NBA: "#FF8A3D", NFL: "#45E0AE", NCAAF: "#8F80FF", NHL: "#5CC8FF", MLB: "#FF6F61", EPL: "#FFD166" };
 
 /* team marks: logo when ESPN has one, otherwise a monogram in the team colour */
@@ -404,7 +408,19 @@ function crowdVsBooks(g) {
 }
 function crowdChip(g, p) {
   const c = g.crowd; if (!c || c.pHome == null) return "";
-  const side = pickedTeam(g, p); if (!side) return `<span class="move" style="background:rgba(143,128,255,.1);border-color:rgba(143,128,255,.3);color:#C4BBFF">👥 ${money(c.money)} traded on this game</span>`;
+  const purple = 'style="background:rgba(143,128,255,.1);border-color:rgba(143,128,255,.3);color:#C4BBFF"', side = pickedTeam(g, p);
+  if (p.market === "spread") {
+    const ps = c.pm?.spread, team = side ? g[side] : null;
+    if (ps && team && Math.abs(Math.abs(ps.line) - Math.abs(p.line)) < 0.01) { const mine = (ps.fav && (team.short === ps.fav || team.name?.includes(ps.fav))) === (p.line < 0) ? ps.favP : 1 - ps.favP;
+      return `<span class="move ${mine >= p.pMkt ? "with" : ""}" ${mine >= p.pMkt ? "" : purple}>👥 Crowd ${pct(mine)} on ${esc(p.label)} · ${money(c.money)} traded</span>`; }
+    return `<span class="move" ${purple}>👥 ${money(c.money)} traded on this game</span>`;
+  }
+  if (p.market === "total") {
+    const pt = c.pm?.total;
+    if (pt && Math.abs(pt.line - p.line) < 0.01) { const mine = p.side === "over" ? pt.over : 1 - pt.over; return `<span class="move ${mine >= p.pMkt ? "with" : ""}" ${mine >= p.pMkt ? "" : purple}>👥 Crowd ${pct(mine)} on the ${p.side} · ${money(c.money)} traded</span>`; }
+    return `<span class="move" ${purple}>👥 ${money(c.money)} traded on this game</span>`;
+  }
+  if (!side) return `<span class="move" ${purple}>👥 ${money(c.money)} traded on this game</span>`;
   const cp = side === "home" ? c.pHome : 1 - c.pHome - (c.pDraw || 0), agree = cp >= p.pMkt;
   return `<span class="move ${agree ? "with" : ""}" style="${agree ? "" : "background:rgba(143,128,255,.1);border-color:rgba(143,128,255,.3);color:#C4BBFF"}">👥 Crowd ${pct(cp)} on ${esc(g[side].abbr)} · ${money(c.money)} traded</span>`;
 }
@@ -420,11 +436,11 @@ function teamLine(t, sport, on, rank) {
 }
 function pickCard({ g, p, id }, feat) {
   const saved = state.saved.includes(id), side = pickedTeam(g, p), tc = side ? liveColor(g[side]) : "var(--amber)";
-  const ringColor = p.tier === "Strong" ? "#45E0AE" : p.tier === "Value" ? "#FFB547" : "#B9C3DA";
+  const ringColor = p.tier === "Strong" ? "#FF5A4E" : p.tier === "Value" ? "#FF8A3D" : "#FFCF85";
   const why = topReason(g);
   return `<article class="card pick ${feat ? "feat" : ""}" style="--tc:${tc}">
     <div class="pick-top"><span class="badge"><i style="background:${SPORT_DOT[g.sport]}"></i>${esc(g.sport === "NCAAF" ? "CFB" : g.sport === "EPL" ? "EPL" : g.sport)} · ${esc(when(g.start))}</span>
-      <span style="display:flex;align-items:center;gap:6px"><span class="tier t-${p.tier}">${p.tier}</span><button class="star" data-save="${esc(id)}" aria-pressed="${saved}" aria-label="${saved ? "Unsave" : "Save"} pick">${saved ? "★" : "☆"}</button></span></div>
+      <span style="display:flex;align-items:center;gap:6px">${tierPill(p.tier)}<button class="star" data-save="${esc(id)}" aria-pressed="${saved}" aria-label="${saved ? "Unsave" : "Save"} pick">${saved ? "★" : "☆"}</button></span></div>
     <button class="pick-main" data-game="${esc(g.id)}">
       <div class="pick-head"><strong>${esc(p.label)}<span class="num">${am(p.price)}</span></strong>
         <div class="teams">${teamLine(g.away, g.sport, side === "away", g.rank?.away)}${teamLine(g.home, g.sport, side === "home", g.rank?.home)}</div></div>
@@ -449,7 +465,7 @@ function gameRow(g) {
   return `<button class="game" data-game="${esc(g.id)}"><span class="side">
       <span class="team ${fin && g.away.score > g.home.score ? "on" : ""}" style="color:var(--fg)">${mark(g.away, g.sport)}<span>${esc(g.away.short || g.away.name)}</span>${sc("away")}</span>
       <span class="team ${fin && g.home.score > g.away.score ? "on" : ""}" style="color:var(--fg)">${mark(g.home, g.sport)}<span>${esc(g.home.short || g.home.name)}</span>${sc("home")}</span>
-      <span class="meta2"><span>${esc(timeOf(g.start))} · ${esc(g.sport === "NCAAF" ? "CFB" : g.sport)}</span>${fin ? "" : `<span>${esc(line)}${g.total != null ? ` · O/U ${g.total}` : ""}</span>`}${g.pick ? `<span class="tier t-${g.pick.tier}">${esc(g.pick.label)}</span>` : ""}</span>
+      <span class="meta2"><span>${esc(timeOf(g.start))} · ${esc(g.sport === "NCAAF" ? "CFB" : g.sport)}</span>${fin ? "" : `<span>${esc(line)}${g.total != null ? ` · O/U ${g.total}` : ""}</span>`}${g.pick ? `<span class="tier t-${g.pick.tier}">${TIER[g.pick.tier]?.icon || ""} ${esc(g.pick.label)}</span>` : ""}</span>
     </span>${right}</button>`;
 }
 function sportChips(list, key = "sport") {
@@ -479,7 +495,7 @@ function viewPicks() {
   const total = currentPicks().length, strong = currentPicks().filter((x) => x.p.tier !== "Lean").length;
   return `${installTip()}<section class="hero">
       <div class="eyebrow">${esc(new Date().toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" }))}</div>
-      <h2>${total ? `<em>${total}</em> picks on the board${strong ? `, ${strong} with real value` : ""}` : "No edges on the board yet"}</h2>
+      <h2>${total ? `<em>${total}</em> picks on the board${strong ? `, ${strong} running hot` : ""}` : "No edges on the board yet"}</h2>
       <div class="kpis">
         <div class="kpi"><b class="num">${R.dec.length ? `${R.w}–${R.l}` : "—"}</b><span>${R.dec.length ? `record · ${Math.round(100 * R.w / R.dec.length)}%` : "record starts soon"}</span></div>
         <div class="kpi"><b class="num ${R.units > 0 ? "good" : R.units < 0 ? "bad" : ""}">${R.g.length ? sgn(R.units) + "u" : "—"}</b><span>units, 1u flat</span></div>
@@ -579,7 +595,7 @@ function viewRecord() {
     <div class="card" style="padding:14px 16px">${withClv.length ? `<div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px"><b style="font-family:var(--display);font-size:26px" class="${beat / withClv.length >= 0.5 ? "good" : "bad"}">${Math.round(100 * beat / withClv.length)}%</b><span class="note" style="margin:0">${beat} of ${withClv.length} picks got a better number than the close${avgPts != null ? ` · avg ${sgn(avgPts, 2)} pts` : ""}${avgProb != null ? ` · avg ${sgn(avgProb * 100, 1)}% on prices` : ""}</span></div><div class="meter"><i style="width:${(100 * beat / withClv.length).toFixed(0)}%"></i></div>` : ""}
       <p class="note" style="margin:${withClv.length ? "10px" : "0"} 0 0;padding:0">The quickest honest test of an edge: if lines keep moving toward EdgeBot’s picks before kickoff, the picks are likely sharp — long before wins and losses settle it.</p></div>
     <h2 class="sec"><span>By strength & sport</span></h2>
-    <div class="card scroll-x"><table class="lanes"><thead><tr><th></th><th class="n">W–L</th><th class="n">Win</th><th class="n">Units</th></tr></thead><tbody>${[...["Strong", "Value", "Lean"].filter((t) => tiers[t]).map((t) => row(t, tiers[t])), ...Object.keys(sports).map((s) => row(sportLabel(s), sports[s]))].join("") || `<tr><td colspan="4" class="note">Grades appear as games with saved picks go final.</td></tr>`}</tbody></table></div>
+    <div class="card scroll-x"><table class="lanes"><thead><tr><th></th><th class="n">W–L</th><th class="n">Win</th><th class="n">Units</th></tr></thead><tbody>${[...["Strong", "Value", "Lean"].filter((t) => tiers[t]).map((t) => row(`${TIER[t].icon} ${TIER[t].name}`, tiers[t])), ...Object.keys(sports).map((s) => row(sportLabel(s), sports[s]))].join("") || `<tr><td colspan="4" class="note">Grades appear as games with saved picks go final.</td></tr>`}</tbody></table></div>
     <h2 class="sec"><span>Which models are working</span></h2>
     <div class="card scroll-x"><table class="lanes"><thead><tr><th>Lane</th><th class="n">W–L</th><th class="n">Brier</th><th>State</th></tr></thead><tbody>${laneRows || `<tr><td colspan="4" class="note">Each sport × market is tracked on its own. “Working” needs 30+ graded picks and must beat the market’s own forecast.</td></tr>`}</tbody></table></div>
     <h2 class="sec"><span>What EdgeBot has learned</span></h2>
@@ -601,7 +617,7 @@ function viewHQ() {
     ["Quant", "#8F80FF", m ? `${Object.values(m.archive || {}).reduce((a, b) => a + b, 0).toLocaleString()} verified finals; ${Object.values(m.blend || {}).reduce((a, b) => a + b.teams, 0)} teams rated.` : "—"],
     ["Simulator", "#FFB547", `${games().filter((g) => g.pred).length} games × 10,000 sims on this phone.`],
     ["Grader", "#45E0AE", m ? `${state.ledger.filter((r) => r.status === "graded").length} picks graded · ${state.ledger.filter((r) => r.clv).length} checked vs the close.` : "—"],
-    ["Coach", "#FF6F61", `${Object.keys(m?.lanes || {}).length} lanes calibrated; struggling ones are capped at Lean.`],
+    ["Coach", "#FF6F61", `${Object.keys(m?.lanes || {}).length} lanes calibrated; struggling ones are capped at Warm.`],
   ];
   return `<canvas id="hq-canvas" aria-label="EdgeBot operations floor, 3D"></canvas>
     <p class="note">Drag to orbit · tap a desk to open that sport’s picks · the core spins faster with more open picks (${open} now).</p>
@@ -613,7 +629,11 @@ function viewHQ() {
       <li>Only tested situational effects are added (NFL wind 15+ mph, away rest edge 3+ days).</li>
       <li>A pick needs a real price edge; the first pick on a game is saved before kickoff and never changed.</li>
       <li><b>Grader</b> scores it after the final and checks it against the closing line; <b>Coach</b> recalibrates each sport × market and caps lanes that lose to the close.</li></ol></details>
-    <details class="how"><summary>Tiers and stakes</summary><p><b>Strong</b> needs a proven lane (30+ graded picks, beating the market’s own forecast) and a 7%+ edge. <b>Value</b> needs a 4.5%+ edge. <b>Lean</b> is a smaller edge or a capped lane. Stakes are ¼ Kelly with 1u = 1% of a bankroll, capped at 2u — a guide, not advice.</p></details>
+    <details class="how"><summary>Warm, Hot, Fire — and stakes</summary>
+      <p><b>🔥 Warm</b> — a small edge: EdgeBot’s chance is 2.5–4.5 points above what the price implies (or a bigger edge held back by injuries or a sport/market that’s been losing to the closing line). Small plays.</p>
+      <p><b>🔥🔥 Hot</b> — an edge of 4.5+ points.</p>
+      <p><b>🔥🔥🔥 Fire</b> — 7+ points, from a sport/market that has proven itself over 30+ graded picks.</p>
+      <p>None of these mean “likely to win” — a +300 underdog can be Hot. They mean the price looks better than it should. Stakes are ¼ Kelly with 1u = 1% of a bankroll, capped at 2u — a guide, not advice.</p></details>
     <h2 class="sec"><span>The crew</span><small>${m ? "last run " + ago(m.lastRun) : ""}</small></h2>
     <div class="agents">${agents.map(([n, c, t]) => `<div class="agent"><b><i style="background:${c};color:${c}"></i>${n}</b><p>${esc(t)}</p></div>`).join("")}</div>
     <h2 class="sec"><span>Activity</span><small>${m?.runs ?? 0} runs</small></h2>
@@ -695,7 +715,7 @@ function openGame(id) {
         <div class="t">${mark(g.home, g.sport, true)}<b>${esc(g.home.short || g.home.name)}</b><small>${esc(g.home.record || "home")}</small></div></div>
     </div>
     <div class="sheet-body">
-    ${pk ? `<div class="callout"><span class="tier t-${pk.tier}">${pk.tier}</span> <b>${esc(pk.label)}</b> <span class="num">${am(pk.price)}</span><br><span style="color:#C9D1E4">EdgeBot ${pct1(pk.p)} vs ${pct1(pk.pMkt)} priced in · fair ${am(pk.fair)} · EV ${sgn(pk.ev * 100)}% · stake ${(pk.stake ?? 0.25)}u (¼ Kelly)</span>${pk.note ? `<br><small style="color:var(--muted)">${esc(pk.note)}</small>` : ""}</div>` : ""}
+    ${pk ? `<div class="callout">${tierPill(pk.tier)} <b>${esc(pk.label)}</b> <span class="num">${am(pk.price)}</span><br><span style="color:#C9D1E4">EdgeBot ${pct1(pk.p)} vs ${pct1(pk.pMkt)} priced in · fair ${am(pk.fair)} · EV ${sgn(pk.ev * 100)}% · stake ${(pk.stake ?? 0.25)}u (¼ Kelly)</span>${pk.note ? `<br><small style="color:var(--muted)">${esc(pk.note)}</small>` : ""}</div>` : ""}
     ${p && !fin ? `<div class="probbar">${winBar(g, s ? s.away : p.pAway, s ? s.home : p.pHome, s ? s.draw : p.pDraw)}<div class="lbl"><span><i style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${ca};margin-right:6px"></i>${esc(g.away.abbr)} ${pct1(s ? s.away : p.pAway)}</span>${(s ? s.draw : p.pDraw) > 0.01 ? `<span>Draw ${pct1(s ? s.draw : p.pDraw)}</span>` : ""}<span>${pct1(s ? s.home : p.pHome)} ${esc(g.home.abbr)}<i style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${ch};margin-left:6px"></i></span></div></div>
       <div class="tiles">
         ${g.spread != null && s ? `<div class="tile"><span>${esc(g.home.abbr)} ${g.spread > 0 ? "+" : ""}${g.spread} covers</span><b>${pct1(s.cover / (1 - s.push))}</b><small>${s.push > 0.005 ? `push ${pct1(s.push)}` : "spread"}</small></div>` : ""}

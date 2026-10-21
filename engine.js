@@ -254,9 +254,9 @@
       let tier = tierOf(c), note = null;
       // Closing-line check: a lane whose picks keep losing to the close is capped at Lean, long before W/L would show it
       const cl = clvLanes[`${g.sport}|${c.market}`];
-      if (tier && tier !== "Lean" && cl && cl.n >= 25 && cl.beat / cl.n < 0.45) { tier = "Lean"; note = `Capped at Lean: only ${Math.round(100 * cl.beat / cl.n)}% of recent ${g.sport} ${c.market} picks beat the closing line.`; }
+      if (tier && tier !== "Lean" && cl && cl.n >= 25 && cl.beat / cl.n < 0.45) { tier = "Lean"; note = `Capped at Warm: only ${Math.round(100 * cl.beat / cl.n)}% of recent ${g.sport} ${c.market} picks beat the closing line.`; }
       const team = c.side === "home" ? "home" : c.side === "away" ? "away" : null;
-      if (tier && team && g.injuries && outCount(g.injuries[team]) >= 2 && tier !== "Lean") { tier = "Lean"; note = `Capped at Lean: ${outCount(g.injuries[team])} ${g[team].abbr} players listed out/doubtful — ratings may overrate them.`; }
+      if (tier && team && g.injuries && outCount(g.injuries[team]) >= 2 && tier !== "Lean") { tier = "Lean"; note = `Capped at Warm: ${outCount(g.injuries[team])} ${g[team].abbr} players listed out/doubtful — ratings may overrate them.`; }
       return { ...c, tier, note };
     }).filter((c) => c.tier).sort((x, y) => y.ev - x.ev);
     return cs[0] || null;
