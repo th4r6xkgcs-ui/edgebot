@@ -5,14 +5,14 @@
    game and graded after; lane calibration corrects over/under-confidence. */
 (function (root) {
   const SPORTS = {
-    NBA:   { label: "NBA", path: "basketball/nba", sdM: 12.5, sdT: 18, hfa: 2.2, k: 0.07, kt: 0.05, avgT: 228, dist: "normal", draw: false, ot: false },
-    NFL:   { label: "NFL", path: "football/nfl", sdM: 13.5, sdT: 13, hfa: 1.6, k: 0.10, kt: 0.06, avgT: 45, dist: "normal", draw: false, ot: false },
+    NBA:   { label: "NBA", path: "basketball/nba", sdM: 12.5, sdT: 18, hfa: 2.2, b2b: 1.5, k: 0.07, kt: 0.05, avgT: 228, dist: "normal", draw: false, ot: false },
+    NFL:   { label: "NFL", path: "football/nfl", sdM: 12.7, sdT: 13.2, hfa: 1.5, k: 0.08, kt: 0.06, avgT: 45, dist: "normal", draw: false, ot: false },
     NCAAF: { label: "College FB", path: "football/college-football", sdM: 16, sdT: 16, hfa: 2.8, k: 0.10, kt: 0.06, avgT: 55, dist: "normal", draw: false, ot: false },
-    NHL:   { label: "NHL", path: "hockey/nhl", sdM: 2.4, sdT: 2.3, hfa: 0.2, k: 0.05, kt: 0.03, avgT: 6.1, dist: "poisson", draw: false, ot: true },
+    NHL:   { label: "NHL", path: "hockey/nhl", sdM: 2.4, sdT: 2.3, hfa: 0.2, b2b: 0.2, k: 0.05, kt: 0.03, avgT: 6.1, dist: "poisson", draw: false, ot: true },
     MLB:   { label: "MLB", path: "baseball/mlb", sdM: 4.3, sdT: 4.4, hfa: 0.2, k: 0.04, kt: 0.03, avgT: 8.8, dist: "negbin", draw: false, ot: true },
     EPL:   { label: "Premier League", path: "soccer/eng.1", sdM: 1.7, sdT: 1.6, hfa: 0.3, k: 0.06, kt: 0.03, avgT: 2.9, dist: "poisson", draw: true, ot: false },
   };
-  const MODEL_VERSION = "edgebot-v2.1";
+  const MODEL_VERSION = "edgebot-v2.2";
   const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
   function erf(x) { const s = Math.sign(x); x = Math.abs(x); const t = 1 / (1 + 0.3275911 * x);
     const y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x); return s * y; }
@@ -28,10 +28,12 @@
   /** Weight on EdgeBot's own ratings (vs market), learned from squared errors on recent finals. */
   /** Starting trust in EdgeBot's own ratings before enough finals have been scored against the closing line. */
   const PRIOR_WEIGHT = 0.15;
+  /** Least-squares blend weight: the w minimising Σ(result − ((1−w)·market + w·ratings))², ridge-shrunk toward 0
+   *  (≈ 60 games of "ratings add nothing"), capped at 55%. Prior until 30 finals are scored against the closing line. */
   function ratingWeight(R) {
-    const b = R.blend || { n: 0 }; if (b.n < 15) return PRIOR_WEIGHT;
-    const learned = clamp(b.seM / (b.seM + b.seR), 0.1, 0.55);
-    return b.n >= 40 ? learned : PRIOR_WEIGHT + (learned - PRIOR_WEIGHT) * (b.n - 15) / 25;
+    const b = R.blend || { n: 0 }; if (!b.n || b.n < 30 || b.sXX == null) return PRIOR_WEIGHT;
+    const ridge = 60 * (b.sXX / b.n);
+    return clamp(b.sXY / (b.sXX + ridge), 0, 0.55);
   }
   function invNorm(p) { // Acklam's rational approximation
     const a = [-39.6968302866538, 220.946098424521, -275.928510446969, 138.357751867269, -30.6647980661472, 2.50662827745924],
@@ -57,18 +59,37 @@
     const pDraw = S.draw ? ncdf((0.5 - margin) / S.sdM) - ncdf((-0.5 - margin) / S.sdM) : 0;
     return { pHome, pDraw };
   }
+  /** Rest effect on EdgeBot's own rating side (NBA/NHL back-to-backs; documented assumption, the market prices it too). */
+  function restRating(g) {
+    const S = SPORTS[g.sport], r = g.restDays; if (!S.b2b || !r) return 0;
+    return (r.home === 1 ? -S.b2b : 0) + (r.away === 1 ? S.b2b : 0);
+  }
+  /** Situational adjustments applied on top of the market blend. Only effects that held up against closing
+   *  lines in BOTH 2015–2019 and 2020–2025 (nflverse, ~3,100 regular-season games) are used. */
+  function situational(g) {
+    const out = { margin: 0, total: 0, notes: [] };
+    if (g.sport === "NFL") {
+      const r = g.restDays;
+      if (r && r.away != null && r.home != null && r.away - r.home >= 3) { out.margin -= 0.9; out.notes.push(`${g.away.abbr} has ${r.away - r.home} more days of rest. Since 2015, away teams with a 3+ day rest edge covered about 54% (both halves of the sample).`); }
+      const w = g.weather;
+      if (w && w.outdoor && w.windMph != null && w.windMph >= 15) { out.total -= 1.6; out.notes.push(`Forecast wind ${Math.round(w.windMph)} mph at kickoff. Since 2015, games with 15+ mph wind finished about 1.6 points under the closing total (unders ~55%).`); }
+    }
+    return out;
+  }
   function predict(g, R) {
     const S = SPORTS[g.sport], h = team(R, g.home.abbr), a = team(R, g.away.abbr);
-    const ratingM = h.r - a.r + S.hfa, ratingT = R.lg.avgT + h.o + a.d + a.o + h.d;
+    const ratingM = h.r - a.r + (g.neutral ? 0 : S.hfa) + restRating(g), ratingT = R.lg.avgT + h.o + a.d + a.o + h.d;
     const evidence = Math.min(h.n, a.n), wr0 = ratingWeight(R), wr = evidence < 4 ? 0 : evidence < 7 ? wr0 * (evidence - 3) / 4 : wr0;
     const mM = marketMargin(g), mT = g.total;
-    const margin = mM == null ? (evidence >= 3 ? ratingM : null) : (1 - wr) * mM + wr * ratingM;
-    const total = mT == null ? (evidence >= 3 ? ratingT : null) : (1 - wr) * mT + wr * ratingT;
+    const sit = situational(g);
+    let margin = mM == null ? (evidence >= 4 ? ratingM : null) : (1 - wr) * mM + wr * ratingM;
+    let total = mT == null ? (evidence >= 4 ? ratingT : null) : (1 - wr) * mT + wr * ratingT;
     if (margin == null) return null;
+    margin += sit.margin; if (total != null) total += sit.total;
     const pHome = S.draw ? 1 - ncdf((0.5 - margin) / S.sdM) : 1 - ncdf(-margin / S.sdM);
     const pDraw = S.draw ? ncdf((0.5 - margin) / S.sdM) - ncdf((-0.5 - margin) / S.sdM) : 0;
     return { margin, total: total ?? R.lg.avgT, pHome, pAway: 1 - pHome - pDraw, pDraw, wr, ratingM, ratingT, marketM: mM, marketT: mT, evidence,
-      homeRating: h, awayRating: a, blendN: (R.blend || {}).n || 0, version: MODEL_VERSION };
+      homeRating: h, awayRating: a, blendN: (R.blend || {}).n || 0, notes: sit.notes, restAdj: restRating(g), version: MODEL_VERSION };
   }
   /** Learn from one verified final. Idempotent via R.seen. */
   function learn(R, g) {
@@ -77,8 +98,9 @@
     const h = { ...team(R, g.home.abbr) }, a = { ...team(R, g.away.abbr) };
     const expM = h.r - a.r + S.hfa, expT = R.lg.avgT + h.o + a.d + a.o + h.d, err = clamp(act - expM, -3 * S.sdM, 3 * S.sdM), errT = clamp(actT - expT, -3 * S.sdT, 3 * S.sdT);
     if (pred && pred.marketM != null && h.n >= 4 && a.n >= 4) {
-      R.blend.seM += (act - pred.marketM) ** 2; R.blend.seR += (act - expM) ** 2; R.blend.n++;
-      if (R.blend.n > 400) { R.blend.seM *= 400 / R.blend.n; R.blend.seR *= 400 / R.blend.n; R.blend.n = 400; }
+      const B = R.blend, x = expM - pred.marketM, y = act - pred.marketM;
+      B.sXY = (B.sXY || 0) + x * y; B.sXX = (B.sXX || 0) + x * x; B.seM += y * y; B.seR += (act - expM) ** 2; B.n++;
+      if (B.n > 600) { const f = 600 / B.n; B.sXY *= f; B.sXX *= f; B.seM *= f; B.seR *= f; B.n = 600; }
     }
     const k = S.k * (h.n < 5 || a.n < 5 ? 2 : 1);
     h.r += k * err; a.r -= k * err;
@@ -94,6 +116,22 @@
     const S = SPORTS[g.sport], h = team(R, g.home.abbr), a = team(R, g.away.abbr);
     if (h.n === 0 && !R.teams[g.home.abbr]) R.teams[g.home.abbr] = { ...h, r: a.r + (mM - S.hfa) / (R.teams[g.away.abbr] ? 1 : 2) };
     if (a.n === 0 && !R.teams[g.away.abbr]) R.teams[g.away.abbr] = { ...a, r: team(R, g.home.abbr).r - (mM - S.hfa) };
+  }
+
+  /** Rebuild a sport's ratings from its archive of verified finals, in date order. Last season's ratings carry
+   *  into the new season regressed toward average, counting as 4 games of evidence. */
+  function buildRatings(sport, archive, currentStart, nowISO, regress = 0.7) {
+    const R = emptyRatings(sport), rows = [...archive].sort((a, b) => (a.d < b.d ? -1 : a.d > b.d ? 1 : 0));
+    let last = null;
+    const cross = () => { for (const t of Object.values(R.teams)) { t.r *= regress; t.o *= regress; t.d *= regress; t.n = Math.min(t.n, 4); } };
+    for (const x of rows) {
+      if (last && Date.parse(x.d) - Date.parse(last) > 45 * 864e5) cross(); // off-season gap → new season
+      last = x.d;
+      learn(R, { id: x.id, sport, start: x.d, status: "post", neutral: !!x.n, home: { abbr: x.h, score: x.hs }, away: { abbr: x.a, score: x.as }, spread: x.sp ?? null, total: x.tot ?? null, restDays: x.rest || null });
+    }
+    if (last && Date.parse(nowISO) - Date.parse(last) > 45 * 864e5) cross();
+    R.seen = rows.map((x) => x.id);
+    return R;
   }
 
   /* -------- prices & picks -------- */
@@ -145,9 +183,16 @@
     if (c.edge >= 0.07 && c.lane === "PROVEN") return "Strong";
     return c.edge >= 0.045 ? "Value" : "Lean";
   }
+  /** Players listed Out/Doubtful with a fresh report. EdgeBot's ratings can't see absences the market already priced. */
+  const outCount = (inj) => (inj || []).filter((p) => p.status === "OUT" || p.status === "DOUBTFUL").length;
   function bestPick(g, pred, lanes) {
     if (!pred) return null;
-    const cs = candidates(g, pred, lanes).map((c) => ({ ...c, tier: tierOf(c) })).filter((c) => c.tier).sort((x, y) => y.ev - x.ev);
+    const cs = candidates(g, pred, lanes).map((c) => {
+      let tier = tierOf(c), note = null;
+      const team = c.side === "home" ? "home" : c.side === "away" ? "away" : null;
+      if (tier && team && g.injuries && outCount(g.injuries[team]) >= 2 && tier !== "Lean") { tier = "Lean"; note = `Capped at Lean: ${outCount(g.injuries[team])} ${g[team].abbr} players listed out/doubtful — ratings may overrate them.`; }
+      return { ...c, tier, note };
+    }).filter((c) => c.tier).sort((x, y) => y.ev - x.ev);
     return cs[0] || null;
   }
   function why(g, pred, pick) {
@@ -156,7 +201,11 @@
     if (pred.evidence >= 4) r.push(`EdgeBot ratings (${pred.homeRating.n}+${pred.awayRating.n} verified games): ${pred.ratingM >= 0 ? H : A} by ${f1(Math.abs(pred.ratingM))}, total ${f1(pred.ratingT)}.`);
     else r.push(`Ratings still building (${pred.evidence} verified games for the thinner team; 4+ needed), so the market sets this projection.`);
     r.push(`Blend: ${Math.round(pred.wr * 100)}% EdgeBot ratings, ${Math.round((1 - pred.wr) * 100)}% market. ${(R0 => R0)(pred.blendN) >= 15 ? `Set from ${pred.blendN} ${S.label} finals scored against the closing line.` : `Starting weight until 15 ${S.label} finals are scored against the closing line (${pred.blendN || 0} so far).`}`);
+    if (pred.restAdj) r.push(`Back-to-back adjustment on EdgeBot's ratings: ${pred.restAdj > 0 ? "+" : ""}${pred.restAdj} for ${H} (rest days ${H} ${g.restDays.home}, ${A} ${g.restDays.away}).`);
+    for (const n of pred.notes || []) r.push(n);
+    for (const side of ["away", "home"]) { const inj = (g.injuries || {})[side]; if (inj && inj.length) r.push(`${g[side].abbr} injuries: ${inj.slice(0, 4).map((p) => `${p.name} (${p.status.toLowerCase()})`).join(", ")}${inj.length > 4 ? ` +${inj.length - 4} more` : ""}.`); }
     if (pick) r.push(`${pick.label}: ${Math.round(pick.p * 100)}% vs ${Math.round(pick.pMkt * 100)}% priced in (fair odds ${pick.fair > 0 ? "+" : ""}${pick.fair}).`);
+    if (pick && pick.note) r.push(pick.note);
     return r;
   }
 
@@ -244,6 +293,6 @@
     return { ratings, touched: [...touched], model, slate, newPicks, graded, log };
   }
 
-  const api = { SPORTS, MODEL_VERSION, predict, learn, simulate, candidates, bestPick, grade, profit, runCycle, emptyRatings, ratingWeight, laneState, toDec, toAm, ncdf, why };
+  const api = { SPORTS, MODEL_VERSION, predict, learn, buildRatings, situational, simulate, candidates, bestPick, grade, profit, runCycle, emptyRatings, ratingWeight, laneState, toDec, toAm, ncdf, why };
   if (typeof module !== "undefined" && module.exports) module.exports = api; else root.EdgeEngine = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);

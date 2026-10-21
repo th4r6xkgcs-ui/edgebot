@@ -10,6 +10,15 @@ const readJson = (f, d) => { try { return JSON.parse(fs.readFileSync(path.join(D
 const writeJson = (f, v) => { fs.mkdirSync(path.dirname(path.join(DATA, f)), { recursive: true }); fs.writeFileSync(path.join(DATA, f), JSON.stringify(v)); };
 
 const SEASON_START = { NBA: "2026-10-20", NHL: "2026-10-06", NFL: "2026-09-10", NCAAF: "2026-08-29", MLB: "2026-03-26", EPL: "2026-08-15" };
+// Last completed season per sport (for preseason ratings), fetched backwards a little each run.
+const PREV_SEASON = { NBA: ["2025-10-21", "2026-06-22"], NHL: ["2025-10-07", "2026-06-25"], NCAAF: ["2025-08-23", "2026-01-20"], EPL: ["2025-08-15", "2026-05-24"] };
+const HISTORY_REQUESTS_PER_RUN = 120;
+// Outdoor (or retractable-roof) NFL stadiums for wind forecasts — nflverse stadium ids.
+const STADIUMS = { BAL00: [39.278, -76.623], BOS00: [42.091, -71.264], BUF00: [42.774, -78.787], CAR00: [35.226, -80.853], CHI98: [41.862, -87.617], CIN00: [39.095, -84.516],
+  CLE00: [41.506, -81.700], DEN00: [39.744, -105.020], GNB00: [44.501, -88.062], JAX00: [30.324, -81.637], KAN00: [39.049, -94.484], MIA00: [25.958, -80.239], NAS00: [36.166, -86.771],
+  NYC01: [40.814, -74.074], PHI00: [39.901, -75.168], PIT00: [40.447, -80.016], SEA00: [47.595, -122.332], SFO01: [37.403, -121.970], TAM00: [27.976, -82.503], WAS00: [38.908, -76.864],
+  LON00: [51.556, -0.280], LON02: [51.604, -0.066], MEX00: [19.303, -99.150], ATL97: [33.755, -84.401], IND00: [39.760, -86.164], PHO00: [33.528, -112.263], DAL00: [32.748, -97.093], HOU00: [29.685, -95.411] };
+const NFLVERSE_ABBR = { LA: "LAR", WAS: "WSH" };
 const PATHS = { NBA: "basketball/nba", NHL: "hockey/nhl", MLB: "baseball/mlb", NFL: "football/nfl", NCAAF: "football/college-football", EPL: "soccer/eng.1" };
 const etDate = (ms) => new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(ms));
 const ymd = (d) => d.replaceAll("-", "");
@@ -31,6 +40,37 @@ async function getJson(url) {
     } catch (e) { last = e.message; await new Promise((s) => setTimeout(s, 700 * (attempt + 1))); }
   }
   failed++; failures.push(`${url.split("/sports/")[1]}: ${last}`); return null;
+}
+async function getText(url) {
+  requests++;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try { const r = await fetch(url, { headers: { "User-Agent": UA }, signal: AbortSignal.timeout(30000) }); if (!r.ok) throw new Error("HTTP " + r.status); return await r.text(); }
+    catch (e) { if (attempt === 2) { failed++; failures.push(`${url.slice(0, 80)}: ${e.message}`); return null; } await new Promise((s) => setTimeout(s, 1000 * (attempt + 1))); }
+  }
+}
+function parseCsv(text) {
+  const rows = []; let row = [], cur = "", q = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) { if (c === '"') { if (text[i + 1] === '"') { cur += '"'; i++; } else q = false; } else cur += c; }
+    else if (c === '"') q = true; else if (c === ",") { row.push(cur); cur = ""; } else if (c === "\n") { row.push(cur); rows.push(row); row = []; cur = ""; } else if (c !== "\r") cur += c;
+  }
+  if (cur || row.length) { row.push(cur); rows.push(row); }
+  const head = rows.shift() || []; return rows.filter((r) => r.length === head.length).map((r) => Object.fromEntries(head.map((h, i) => [h, r[i]])));
+}
+const normStatus = (s) => /^out|injured reserve|^ir\b|suspen/i.test(s) ? "OUT" : /doubt/i.test(s) ? "DOUBTFUL" : /question/i.test(s) ? "QUESTIONABLE" : /day.to.day|probable/i.test(s) ? "DAY_TO_DAY" : "OTHER";
+/** ESPN league injury report -> { teamDisplayName: [{name, pos, status, detail}] } (fresh reports only; rest designations dropped). */
+async function injuries(sport) {
+  const d = await getJson(`https://site.api.espn.com/apis/site/v2/sports/${PATHS[sport]}/injuries`); const out = {};
+  for (const team of d?.injuries || []) for (const e of team.injuries || []) {
+    const name = e.athlete?.displayName, raw = String(e.status ?? e.type?.description ?? ""), detail = [e.details?.type, e.details?.detail].filter(Boolean).join(" ") || String(e.shortComment || "").slice(0, 120);
+    if (!team.displayName || !name || /\brest\b|load management|not injury related/i.test(detail + " " + (e.shortComment || ""))) continue;
+    const updated = Date.parse(e.date || ""), status = normStatus(raw);
+    const fresh = (isFinite(updated) && NOW - updated <= 21 * 864e5) || (status === "OUT" && e.details?.returnDate && Date.parse(e.details.returnDate) > NOW);
+    if (!fresh || status === "OTHER") continue;
+    (out[team.displayName] ||= []).push({ name, pos: e.athlete?.position?.abbreviation || "", status, detail });
+  }
+  return out;
 }
 const num = (x) => { if (x === null || x === undefined || x === "") return null; const v = typeof x === "string" ? parseFloat(x.replace(/^EVEN$/i, "100")) : +x; return isFinite(v) ? v : null; };
 /** One ESPN event -> engine game (or null). */
@@ -73,7 +113,9 @@ async function scoreboard(sport, date) {
 }
 
 async function main() {
-  const today = etDate(NOW), fetched = readJson("state/fetched.json", {}), month = +today.slice(5, 7);
+  // v2.2 migration: ratings now come from a finals archive, so re-walk this season once if the archive doesn't exist yet
+  const firstArchiveRun = !fs.existsSync(path.join(DATA, "state", "archive"));
+  const today = etDate(NOW), fetched = firstArchiveRun ? {} : readJson("state/fetched.json", {}), month = +today.slice(5, 7);
   const jobs = [];
   for (const s of ["NBA", "NHL"]) for (const n of [-1, 0, 1, 2]) jobs.push([s, addDays(today, n)]);
   if (month >= 3 && month <= 11) for (const n of [-1, 0, 1]) jobs.push(["MLB", addDays(today, n)]);
@@ -83,10 +125,33 @@ async function main() {
     let d = fetched[s] ? addDays(fetched[s], -1) : addDays(today, -4), k = 0;
     while (k < 70 && d >= SEASON_START[s]) { jobs.push([s, d, true]); fetched[s] = d; d = addDays(d, -1); k++; }
   }
+  // last season (preseason ratings): walk backwards from the season's end, a capped number of dates per run
+  const history = readJson("state/history.json", {}); let histBudget = HISTORY_REQUESTS_PER_RUN;
+  for (const [s, [from, to]] of Object.entries(PREV_SEASON)) {
+    let d = history[s] ? addDays(history[s], -1) : to;
+    while (histBudget > 0 && d >= from) { jobs.push([s, d, true]); history[s] = d; d = addDays(d, -1); histBudget--; }
+  }
   const games = new Map();
   for (let i = 0; i < jobs.length; i += 4) {
     const chunk = await Promise.all(jobs.slice(i, i + 4).map(([s, d]) => scoreboard(s, d)));
     for (const list of chunk) for (const g of list) { const prev = games.get(g.id); if (!prev || g.status === "post" || (prev.status !== "post" && g.spread != null)) games.set(g.id, g); }
+  }
+  // ---- archive of verified finals per sport (ratings are rebuilt from it every run, in date order) ----
+  const archive = {}; for (const sp of Object.keys(E.SPORTS)) archive[sp] = readJson(`state/archive/${sp}.json`, []);
+  // NFL history with closing lines, rest days and stadiums from nflverse (open data, CC-BY 4.0)
+  const nflMeta = new Map();
+  const csv = await getText("https://raw.githubusercontent.com/nflverse/nfldata/master/data/games.csv");
+  if (csv) {
+    const nv = parseCsv(csv).filter((r) => +r.season >= 2024), keep = [];
+    for (const r of nv) {
+      const h = NFLVERSE_ABBR[r.home_team] || r.home_team, a = NFLVERSE_ABBR[r.away_team] || r.away_team, id = r.espn ? `NFL:${r.espn}` : `NFL:nv-${r.game_id}`;
+      const rest = { home: num(r.home_rest), away: num(r.away_rest) };
+      nflMeta.set(id, { rest, stadium: r.stadium_id, roof: r.roof, neutral: r.location === "Neutral" });
+      if (r.result !== "" && r.home_score !== "" && r.away_score !== "")
+        keep.push({ id, d: new Date(`${r.gameday}T${(r.gametime || "13:00")}:00-05:00`).toISOString(), h, a, hs: +r.home_score, as: +r.away_score,
+          sp: r.spread_line !== "" ? -(+r.spread_line) : null, tot: r.total_line !== "" ? +r.total_line : null, rest, n: r.location === "Neutral" ? 1 : 0 });
+    }
+    const ids = new Set(keep.map((x) => x.id)); archive.NFL = [...archive.NFL.filter((x) => !ids.has(x.id)), ...keep];
   }
   // ESPN drops odds once a game is final: remember each game's last pregame line (≈ closing line) and re-attach it.
   const lines = readJson("state/lines.json", {});
@@ -96,7 +161,44 @@ async function main() {
   }
   for (const [id, L] of Object.entries(lines)) if (Date.parse(L.start) < NOW - 30 * 864e5) delete lines[id];
   writeJson("state/lines.json", lines);
-  const ratings = {}; for (const s of Object.keys(E.SPORTS)) { const r = readJson(`ratings/${s}.json`, null); if (r) ratings[s] = r; }
+  // add this run's verified finals (with their stored closing lines) to the archive
+  for (const g of games.values()) if (g.status === "post" && g.home.score != null && g.away.score != null) {
+    const A = archive[g.sport], i = A.findIndex((x) => x.id === g.id), row = { id: g.id, d: g.start, h: g.home.abbr, a: g.away.abbr, hs: g.home.score, as: g.away.score, sp: g.spread, tot: g.total };
+    if (i < 0) A.push(row); else if (A[i].sp == null && row.sp != null) A[i] = { ...A[i], sp: row.sp, tot: row.tot };
+  }
+  // context for upcoming games: rest days, NFL stadium/weather, injury reports
+  const lastPlayed = {}; // sport|team -> sorted dates (ET) of games
+  for (const [sp, A] of Object.entries(archive)) for (const x of A) { for (const t of [x.h, x.a]) (lastPlayed[`${sp}|${t}`] ||= []).push(etDate(Date.parse(x.d))); }
+  for (const g of games.values()) for (const t of [g.home.abbr, g.away.abbr]) (lastPlayed[`${g.sport}|${t}`] ||= []).push(etDate(Date.parse(g.start)));
+  for (const k of Object.keys(lastPlayed)) lastPlayed[k] = [...new Set(lastPlayed[k])].sort();
+  const restFor = (sp, t, day) => { const L = lastPlayed[`${sp}|${t}`] || []; let prev = null; for (const d of L) { if (d < day) prev = d; else break; } return prev ? Math.round((Date.parse(day) - Date.parse(prev)) / 864e5) : null; };
+  const injuryBooks = {};
+  for (const sp of ["NBA", "NFL", "NHL"]) if ([...games.values()].some((g) => g.sport === sp && g.status === "pre")) injuryBooks[sp] = await injuries(sp);
+  const weatherJobs = [];
+  for (const g of games.values()) {
+    if (g.status !== "pre") continue;
+    const day = etDate(Date.parse(g.start));
+    if (g.sport === "NBA" || g.sport === "NHL") g.restDays = { home: restFor(g.sport, g.home.abbr, day), away: restFor(g.sport, g.away.abbr, day) };
+    if (g.sport === "NFL") {
+      const m = nflMeta.get(g.id);
+      if (m) { g.restDays = m.rest; g.neutral = m.neutral;
+        const where = STADIUMS[m.stadium], outdoor = m.roof === "outdoors" || m.roof === "open";
+        if (where && outdoor && Date.parse(g.start) - NOW < 6 * 864e5) weatherJobs.push([g, where]);
+        else if (!outdoor && m.roof) g.weather = { outdoor: false, roof: m.roof };
+      }
+    }
+    const book = injuryBooks[g.sport];
+    if (book) g.injuries = { home: book[g.home.name] || [], away: book[g.away.name] || [] };
+  }
+  for (const [g, [lat, lon]] of weatherJobs) {
+    const day = new Date(g.start).toISOString().slice(0, 10);
+    const w = await getJson(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=wind_speed_10m,wind_gusts_10m,temperature_2m,precipitation_probability&wind_speed_unit=mph&temperature_unit=fahrenheit&timezone=UTC&start_date=${day}&end_date=${day}`);
+    const hour = new Date(g.start).getUTCHours(), H = w?.hourly;
+    if (H?.time) { const i = H.time.findIndex((t) => +t.slice(11, 13) === hour); if (i >= 0) g.weather = { outdoor: true, windMph: H.wind_speed_10m[i], gustMph: H.wind_gusts_10m?.[i], tempF: H.temperature_2m?.[i], rainPct: H.precipitation_probability?.[i], source: "Open-Meteo forecast" }; }
+  }
+  // rebuild ratings from the archive (last season regressed 30% toward average, then this season)
+  const ratings = {};
+  for (const sp of Object.keys(E.SPORTS)) if (archive[sp].length) ratings[sp] = E.buildRatings(sp, archive[sp], SEASON_START[sp], now.toISOString());
   const model = readJson("state/model.json", {}), ledger = readJson("ledger.json", []);
   const out = E.runCycle({ now: now.toISOString(), games: [...games.values()], ratings, model, openLedger: ledger.filter((r) => r.status === "open"), ledgerIds: ledger.map((r) => r.id) });
   const byId = new Map(ledger.map((r) => [r.id, r]));
@@ -105,9 +207,13 @@ async function main() {
   for (const r of ledger) if (r.status === "open" && Date.parse(r.start) < NOW - 4 * 864e5) Object.assign(r, { status: "void", note: "No verified final found." });
   ledger.push(...out.newPicks);
   const runs = readJson("runs.json", []);
-  const log = [...out.log, `${requests} ESPN requests${failed ? `, ${failed} failed` : ""}.`];
+  const archived = Object.fromEntries(Object.entries(archive).filter(([, A]) => A.length).map(([sp, A]) => [sp, A.length]));
+  out.model.archive = archived; out.model.lastSummary.archive = archived;
+  const log = [...out.log, `Ratings rebuilt from ${Object.values(archived).reduce((x, y) => x + y, 0)} verified finals (${Object.entries(archived).map(([k, v]) => `${k} ${v}`).join(", ")}).`, `${requests} ESPN requests${failed ? `, ${failed} failed` : ""}.`];
   runs.unshift({ at: now.toISOString(), summary: out.model.lastSummary, log, failures: failures.slice(0, 5) }); runs.length = Math.min(runs.length, 60);
   for (const s of out.touched) writeJson(`ratings/${s}.json`, out.ratings[s]);
+  for (const [sp, A] of Object.entries(archive)) if (A.length) writeJson(`state/archive/${sp}.json`, A.filter((x) => Date.parse(x.d) > NOW - 800 * 864e5));
+  writeJson("state/history.json", history);
   writeJson("state/model.json", out.model); writeJson("state/fetched.json", fetched); writeJson("ledger.json", ledger); writeJson("runs.json", runs);
   writeJson("app.json", { at: now.toISOString(), slate: { at: now.toISOString(), games: out.slate }, model: out.model,
     ledger: [...ledger].sort((a, b) => (b.savedAt || "").localeCompare(a.savedAt || "")).slice(0, 800), runs: runs.slice(0, 15) });
