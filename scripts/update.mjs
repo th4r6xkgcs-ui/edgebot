@@ -10,9 +10,13 @@ const now = new Date(process.env.EDGEBOT_NOW || Date.now()), NOW = now.getTime()
 const readJson = (f, d) => { try { return JSON.parse(fs.readFileSync(path.join(DATA, f), "utf8")); } catch { return d; } };
 const writeJson = (f, v) => { fs.mkdirSync(path.dirname(path.join(DATA, f)), { recursive: true }); fs.writeFileSync(path.join(DATA, f), JSON.stringify(v)); };
 
-const SEASON_START = { NBA: "2026-10-20", NHL: "2026-10-06", NFL: "2026-09-10", NCAAF: "2026-08-29", MLB: "2026-03-26", EPL: "2026-08-15" };
+const SEASON_START = { NBA: "2026-10-20", NHL: "2026-10-06", NFL: "2026-09-10", NCAAF: "2026-08-29", MLB: "2026-03-26", EPL: "2026-08-15",
+  LALIGA: "2026-08-14", BUND: "2026-08-21", SERIEA: "2026-08-22", LIGUE1: "2026-08-14", UCL: "2026-09-15", MLS: "2026-02-21", NCAAB: "2026-11-02" };
+const SOCCER = ["EPL", "LALIGA", "BUND", "SERIEA", "LIGUE1", "UCL", "MLS"];
 // Last completed season per sport (for preseason ratings), fetched backwards a little each run.
-const PREV_SEASON = { NBA: ["2025-10-21", "2026-06-22"], NHL: ["2025-10-07", "2026-06-25"], NCAAF: ["2025-08-23", "2026-01-20"], EPL: ["2025-08-15", "2026-05-24"] };
+const PREV_SEASON = { NBA: ["2025-10-21", "2026-06-22"], NHL: ["2025-10-07", "2026-06-25"], NCAAF: ["2025-08-23", "2026-01-20"], EPL: ["2025-08-15", "2026-05-24"],
+  LALIGA: ["2025-08-15", "2026-05-24"], BUND: ["2025-08-22", "2026-05-16"], SERIEA: ["2025-08-23", "2026-05-24"], LIGUE1: ["2025-08-15", "2026-05-16"], UCL: ["2025-09-16", "2026-05-30"],
+  NCAAB: ["2025-11-03", "2026-04-07"] };
 const HISTORY_REQUESTS_PER_RUN = 120;
 // Outdoor (or retractable-roof) NFL stadiums for wind forecasts — nflverse stadium ids.
 const STADIUMS = { BAL00: [39.278, -76.623], BOS00: [42.091, -71.264], BUF00: [42.774, -78.787], CAR00: [35.226, -80.853], CHI98: [41.862, -87.617], CIN00: [39.095, -84.516],
@@ -20,7 +24,7 @@ const STADIUMS = { BAL00: [39.278, -76.623], BOS00: [42.091, -71.264], BUF00: [4
   NYC01: [40.814, -74.074], PHI00: [39.901, -75.168], PIT00: [40.447, -80.016], SEA00: [47.595, -122.332], SFO01: [37.403, -121.970], TAM00: [27.976, -82.503], WAS00: [38.908, -76.864],
   LON00: [51.556, -0.280], LON02: [51.604, -0.066], MEX00: [19.303, -99.150], ATL97: [33.755, -84.401], IND00: [39.760, -86.164], PHO00: [33.528, -112.263], DAL00: [32.748, -97.093], HOU00: [29.685, -95.411] };
 const NFLVERSE_ABBR = { LA: "LAR", WAS: "WSH" };
-const PATHS = { NBA: "basketball/nba", NHL: "hockey/nhl", MLB: "baseball/mlb", NFL: "football/nfl", NCAAF: "football/college-football", EPL: "soccer/eng.1" };
+const PATHS = Object.fromEntries(Object.entries(E.SPORTS).map(([k, v]) => [k, v.path]));
 const etDate = (ms) => new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(ms));
 const ymd = (d) => d.replaceAll("-", "");
 const addDays = (d, n) => { const t = new Date(d + "T12:00:00Z"); t.setUTCDate(t.getUTCDate() + n); return t.toISOString().slice(0, 10); };
@@ -74,8 +78,17 @@ async function injuries(sport) {
   return out;
 }
 /* ---------- the crowd: prediction-market money (Polymarket, Kalshi — public APIs) ---------- */
-const PM_SERIES = { NBA: 10345, NFL: 12185, NHL: 10346, NCAAF: 12756, EPL: 10188, MLB: 3 };
-const KALSHI_SERIES = { NBA: "KXNBAGAME", NFL: "KXNFLGAME", NHL: "KXNHLGAME", NCAAF: "KXNCAAFGAME", EPL: "KXEPLGAME", MLB: "KXMLBGAME" };
+const PM_SERIES = { NBA: 10345, NFL: 12185, NHL: 10346, NCAAF: 12756, EPL: 10188, MLB: 3, LALIGA: 10193 };
+const PM_CODES = { BUND: ["bun", "bundesliga"], SERIEA: ["sea", "seriea"], LIGUE1: ["fl1", "ligue1"], UCL: ["ucl"], MLS: ["mls"], NCAAB: ["cbb", "ncaab"] };
+const KALSHI_SERIES = { NBA: "KXNBAGAME", NFL: "KXNFLGAME", NHL: "KXNHLGAME", NCAAF: "KXNCAAFGAME", EPL: "KXEPLGAME", MLB: "KXMLBGAME", LALIGA: "KXLALIGAGAME", BUND: "KXBUNDESLIGAGAME",
+  SERIEA: "KXSERIEAGAME", LIGUE1: "KXLIGUE1GAME", UCL: "KXUCLGAME", MLS: "KXMLSGAME", NCAAB: "KXNCAAMBGAME" };
+let pmSportsList = null;
+async function pmSeriesFor(sport) {
+  if (PM_SERIES[sport]) return PM_SERIES[sport];
+  pmSportsList ||= (await getJson("https://gamma-api.polymarket.com/sports")) || [];
+  const hit = pmSportsList.find((x) => (PM_CODES[sport] || []).includes(String(x.sport).toLowerCase()));
+  return hit ? (PM_SERIES[sport] = +hit.series) : null;
+}
 const norm = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
 /** Does a crowd-market team label ("Magic", "Golden State", "Man City") name this ESPN team? */
 function sameTeam(label, t) {
@@ -86,7 +99,8 @@ function sameTeam(label, t) {
 async function polymarket(sport) {
   const out = [];
   for (let offset = 0; offset < 300; offset += 100) {
-    const ev = await getJson(`https://gamma-api.polymarket.com/events?series_id=${PM_SERIES[sport]}&closed=false&limit=100&offset=${offset}&order=startDate&ascending=true`);
+    const sid = await pmSeriesFor(sport); if (!sid) break;
+    const ev = await getJson(`https://gamma-api.polymarket.com/events?series_id=${sid}&closed=false&limit=100&offset=${offset}&order=startDate&ascending=true`);
     if (!Array.isArray(ev) || !ev.length) break;
     for (const e of ev) {
       const mk = (e.markets || []).filter((m) => m.active !== false && !m.closed);
@@ -188,7 +202,7 @@ export function parseEvent(sport, ev) {
     g.overPrice = num(o.total?.over?.close?.odds) ?? num(o.overOdds) ?? null;
     g.underPrice = num(o.total?.under?.close?.odds) ?? num(o.underOdds) ?? null;
     if (!oddsSamples[sport]) oddsSamples[sport] = o;
-    if (sport !== "EPL") {
+    if (!E.SPORTS[sport]?.draw) {
       const homeLine = num(o.pointSpread?.home?.close?.line) ?? num(o.pointSpread?.home?.open?.line);
       if (homeLine != null) g.spread = homeLine;
       else {
@@ -204,7 +218,7 @@ export function parseEvent(sport, ev) {
   return g;
 }
 async function scoreboard(sport, date) {
-  const q = new URLSearchParams(); if (date) q.set("dates", ymd(date)); if (sport === "NCAAF") q.set("groups", "80");
+  const q = new URLSearchParams(); if (date) q.set("dates", ymd(date)); if (sport === "NCAAF") q.set("groups", "80"); if (sport === "NCAAB") q.set("groups", "50");
   const d = await getJson(`https://site.api.espn.com/apis/site/v2/sports/${PATHS[sport]}/scoreboard?${q}`);
   return (d?.events || []).map((ev) => parseEvent(sport, ev)).filter(Boolean);
 }
@@ -214,11 +228,11 @@ async function main() {
   const firstArchiveRun = !fs.existsSync(path.join(DATA, "state", "archive"));
   const today = etDate(NOW), fetched = firstArchiveRun ? {} : readJson("state/fetched.json", {}), month = +today.slice(5, 7);
   const jobs = [];
-  for (const s of ["NBA", "NHL"]) for (const n of [-1, 0, 1, 2]) jobs.push([s, addDays(today, n)]);
+  for (const s of ["NBA", "NHL", ...(today >= addDays(SEASON_START.NCAAB, -2) && month !== 5 ? ["NCAAB"] : [])]) for (const n of [-1, 0, 1, 2]) jobs.push([s, addDays(today, n)]);
   if (month >= 3 && month <= 11) for (const n of [-1, 0, 1]) jobs.push(["MLB", addDays(today, n)]);
-  for (const s of ["NFL", "NCAAF", "EPL"]) { jobs.push([s, null]); for (const n of [-3, -2, -1, 1, 2, 3, 4, 5, 6]) jobs.push([s, addDays(today, n)]); }
+  for (const s of ["NFL", "NCAAF", ...SOCCER]) { jobs.push([s, null]); for (const n of [-3, -2, -1, 1, 2, 3, 4, 5, 6]) jobs.push([s, addDays(today, n)]); }
   // backfill: walk back from the oldest fetched date toward season start, a few dates per run
-  for (const s of ["NBA", "NHL", "NFL", "NCAAF", "EPL"]) {
+  for (const s of ["NBA", "NHL", "NFL", "NCAAF", ...SOCCER]) {
     let d = fetched[s] ? addDays(fetched[s], -1) : addDays(today, -4), k = 0;
     while (k < 70 && d >= SEASON_START[s]) { jobs.push([s, d, true]); fetched[s] = d; d = addDays(d, -1); k++; }
   }

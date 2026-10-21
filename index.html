@@ -388,7 +388,8 @@ const sportLabel = (s) => SP[s]?.label || s;
 const TIER = { Lean: { name: "Warm", icon: "🔥" }, Value: { name: "Hot", icon: "🔥🔥" }, Strong: { name: "Fire", icon: "🔥🔥🔥" } };
 const tierName = (t) => TIER[t]?.name || t;
 const tierPill = (t, small) => `<span class="tier t-${t}"${small ? ' style="padding:1px 8px;font-size:10.5px"' : ""}>${TIER[t]?.icon || ""} ${esc(tierName(t))}</span>`;
-const SPORT_DOT = { NBA: "#FF8A3D", NFL: "#45E0AE", NCAAF: "#8F80FF", NHL: "#5CC8FF", MLB: "#FF6F61", EPL: "#FFD166" };
+const SPORT_DOT = { NBA: "#FF8A3D", NFL: "#45E0AE", NCAAF: "#8F80FF", NHL: "#5CC8FF", MLB: "#FF6F61", EPL: "#FFD166", LALIGA: "#FF9F7A", BUND: "#E8E05A", SERIEA: "#6FA8FF", LIGUE1: "#B8F25A", UCL: "#A9B4FF", MLS: "#F08FD0", NCAAB: "#FFB0A0", TENNIS: "#D7F25A", UFC: "#FF4D6D", ESPORTS: "#B07CFF" };
+const SHORT = { NCAAF: "CFB", NCAAB: "CBB", LALIGA: "LaLiga", BUND: "Bundesliga", SERIEA: "Serie A", LIGUE1: "Ligue 1", UCL: "UCL", ESPORTS: "Esports" };
 
 /* team marks: logo when ESPN has one, otherwise a monogram in the team colour */
 const teamIndex = new Map();
@@ -522,7 +523,7 @@ function pickCard({ g, p, id }, feat) {
   const ringColor = p.tier === "Strong" ? "#FF5A4E" : p.tier === "Value" ? "#FF8A3D" : "#FFCF85";
   const why = topReason(g);
   return `<article class="card pick ${feat ? "feat" : ""} ${p.tier === "Strong" ? "fire" : ""}" style="--tc:${tc}">${p.tier === "Strong" ? embers() : ""}
-    <div class="pick-top"><span class="badge"><i style="background:${SPORT_DOT[g.sport]}"></i>${esc(g.sport === "NCAAF" ? "CFB" : g.sport === "EPL" ? "EPL" : g.sport)} · ${esc(when(g.start))}</span>
+    <div class="pick-top"><span class="badge"><i style="background:${SPORT_DOT[g.sport]}"></i>${esc(SHORT[g.sport] || g.sport)} · ${esc(when(g.start))}</span>
       <span style="display:flex;align-items:center;gap:6px">${tierPill(p.tier)}<button class="star" data-save="${esc(id)}" aria-pressed="${saved}" aria-label="${saved ? "Unsave" : "Save"} pick">${saved ? "★" : "☆"}</button></span></div>
     <button class="pick-main" data-game="${esc(g.id)}">
       <div class="pick-head"><strong>${esc(p.label)}<span class="num">${am(p.price)}</span></strong>
@@ -548,7 +549,7 @@ function gameRow(g) {
   return `<button class="game" data-game="${esc(g.id)}"><span class="side">
       <span class="team ${fin && g.away.score > g.home.score ? "on" : ""}" style="color:var(--fg)">${mark(g.away, g.sport)}<span>${esc(g.away.short || g.away.name)}</span>${sc("away")}</span>
       <span class="team ${fin && g.home.score > g.away.score ? "on" : ""}" style="color:var(--fg)">${mark(g.home, g.sport)}<span>${esc(g.home.short || g.home.name)}</span>${sc("home")}</span>
-      <span class="meta2"><span>${esc(timeOf(g.start))} · ${esc(g.sport === "NCAAF" ? "CFB" : g.sport)}</span>${fin ? "" : `<span>${esc(line)}${g.total != null ? ` · O/U ${g.total}` : ""}</span>`}${g.pick ? `<span class="tier t-${g.pick.tier}">${TIER[g.pick.tier]?.icon || ""} ${esc(g.pick.label)}</span>` : ""}</span>
+      <span class="meta2"><span>${esc(timeOf(g.start))} · ${esc(SHORT[g.sport] || g.sport)}</span>${fin ? "" : `<span>${esc(line)}${g.total != null ? ` · O/U ${g.total}` : ""}</span>`}${g.pick ? `<span class="tier t-${g.pick.tier}">${TIER[g.pick.tier]?.icon || ""} ${esc(g.pick.label)}</span>` : ""}</span>
     </span>${right}</button>`;
 }
 function sportChips(list, key = "sport") {
@@ -633,7 +634,7 @@ function viewCrowd(groups) {
       return `<button class="crowd-row" data-game="${esc(g.id)}"><span class="side" style="display:flex;flex-direction:column;gap:7px;min-width:0">
           <span class="team" style="color:var(--fg)">${mark(g.away, g.sport)}<span>${esc(g.away.short || g.away.name)}</span><em>${pct(c.pHome != null ? 1 - c.pHome - (c.pDraw || 0) : null)}</em></span>
           <span class="team" style="color:var(--fg)">${mark(g.home, g.sport)}<span>${esc(g.home.short || g.home.name)}</span><em>${pct(c.pHome)}</em></span>
-          <span class="meta2" style="font-size:11.5px;color:var(--dim);display:flex;gap:8px;flex-wrap:wrap"><span>${esc(when(g.start))} · ${esc(g.sport === "NCAAF" ? "CFB" : g.sport)}</span>${vb ? `<span class="vsbook">Crowd likes ${esc(vb.team.abbr)} +${Math.round(vb.pts * 100)} vs books</span>` : ""}${c.move24 && Math.abs(c.move24) >= 0.03 ? `<span class="vsbook" style="background:rgba(92,200,255,.1);border-color:rgba(92,200,255,.3);color:#9FDFFF">${c.move24 > 0 ? "▲" : "▼"} ${esc(g.home.abbr)} ${sgn(c.move24 * 100, 0)} today</span>` : ""}</span></span>
+          <span class="meta2" style="font-size:11.5px;color:var(--dim);display:flex;gap:8px;flex-wrap:wrap"><span>${esc(when(g.start))} · ${esc(SHORT[g.sport] || g.sport)}</span>${vb ? `<span class="vsbook">Crowd likes ${esc(vb.team.abbr)} +${Math.round(vb.pts * 100)} vs books</span>` : ""}${c.move24 && Math.abs(c.move24) >= 0.03 ? `<span class="vsbook" style="background:rgba(92,200,255,.1);border-color:rgba(92,200,255,.3);color:#9FDFFF">${c.move24 > 0 ? "▲" : "▼"} ${esc(g.home.abbr)} ${sgn(c.move24 * 100, 0)} today</span>` : ""}</span></span>
         <span style="display:flex;flex-direction:column;gap:6px;align-items:stretch"><span class="money" style="text-align:right">${money(c.money)}<small>${c.money24 ? money(c.money24) + " in 24h" : "traded"}</small></span>${c.pHome != null ? winBar(g, 1 - c.pHome - (c.pDraw || 0), c.pHome, c.pDraw || 0) : ""}</span></button>`; }).join("")}</div>`
       : `<div class="card empty"><strong>No crowd markets matched yet</strong>Prediction markets list most NBA, NFL, NHL and college games a few days ahead.</div>`}`;
 }
@@ -1098,7 +1099,8 @@ const hq = (() => {
     coreGlow = new THREE.Mesh(new THREE.SphereGeometry(0.55, 24, 16), new THREE.MeshBasicMaterial({ color: 0xffcf85, transparent: true, opacity: 0.55 })); coreGlow.position.y = 1.6; scene.add(coreGlow);
     const halo = new THREE.Mesh(new THREE.RingGeometry(1.15, 1.3, 64), new THREE.MeshBasicMaterial({ color: 0xffb547, transparent: true, opacity: 0.25, side: THREE.DoubleSide })); halo.rotation.x = -Math.PI / 2; halo.position.y = 0.02; scene.add(halo);
     const ring = new THREE.Mesh(new THREE.TorusGeometry(1.4, 0.03, 8, 64), new THREE.MeshBasicMaterial({ color: 0x47dfae })); ring.rotation.x = Math.PI / 2; ring.position.y = 0.4; scene.add(ring);
-    const sports = Object.keys(SP);
+    const live = Object.keys(SP).filter((s) => games().some((g) => g.sport === s)), sports = (live.length ? live : Object.keys(SP)).slice(0, 10);
+    for (const s of sports) COLORS[s] ??= parseInt((SPORT_DOT[s] || "#8C98B4").slice(1), 16);
     sports.forEach((s, i) => {
       const a = (i / sports.length) * Math.PI * 2, r = 5.2, grp = new THREE.Group();
       grp.position.set(Math.cos(a) * r, 0, Math.sin(a) * r); grp.lookAt(0, 0, 0);

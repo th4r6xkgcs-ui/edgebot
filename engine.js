@@ -11,6 +11,13 @@
     NHL:   { label: "NHL", path: "hockey/nhl", sdM: 2.4, sdT: 2.3, hfa: 0.2, b2b: 0.2, spreadNeedsPrice: true, k: 0.05, kt: 0.03, avgT: 6.1, dist: "poisson", draw: false, ot: true },
     MLB:   { label: "MLB", path: "baseball/mlb", spreadNeedsPrice: true, sdM: 4.3, sdT: 4.4, hfa: 0.2, k: 0.04, kt: 0.03, avgT: 8.8, dist: "negbin", draw: false, ot: true },
     EPL:   { label: "Premier League", path: "soccer/eng.1", sdM: 1.7, sdT: 1.6, hfa: 0.3, k: 0.06, kt: 0.03, avgT: 2.9, dist: "poisson", draw: true, ot: false },
+    LALIGA: { label: "La Liga", path: "soccer/esp.1", sdM: 1.7, sdT: 1.6, hfa: 0.3, k: 0.06, kt: 0.03, avgT: 2.6, dist: "poisson", draw: true, ot: false },
+    BUND: { label: "Bundesliga", path: "soccer/ger.1", sdM: 1.7, sdT: 1.6, hfa: 0.3, k: 0.06, kt: 0.03, avgT: 3.1, dist: "poisson", draw: true, ot: false },
+    SERIEA: { label: "Serie A", path: "soccer/ita.1", sdM: 1.7, sdT: 1.6, hfa: 0.3, k: 0.06, kt: 0.03, avgT: 2.6, dist: "poisson", draw: true, ot: false },
+    LIGUE1: { label: "Ligue 1", path: "soccer/fra.1", sdM: 1.7, sdT: 1.6, hfa: 0.3, k: 0.06, kt: 0.03, avgT: 2.8, dist: "poisson", draw: true, ot: false },
+    UCL: { label: "Champions League", path: "soccer/uefa.champions", sdM: 1.7, sdT: 1.6, hfa: 0.3, k: 0.06, kt: 0.03, avgT: 3.0, dist: "poisson", draw: true, ot: false },
+    MLS: { label: "MLS", path: "soccer/usa.1", sdM: 1.7, sdT: 1.6, hfa: 0.3, k: 0.06, kt: 0.03, avgT: 3.0, dist: "poisson", draw: true, ot: false },
+    NCAAB: { label: "College BB", path: "basketball/mens-college-basketball", sdM: 11, sdT: 16, hfa: 3.2, k: 0.07, kt: 0.05, avgT: 146, b2b: 0, dist: "normal", draw: false, ot: false },
   };
   const MODEL_VERSION = "edgebot-v2.5";
   const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
