@@ -216,6 +216,9 @@ async function main() {
   const out = E.runCycle({ now: now.toISOString(), games: [...games.values()], ratings, model, openLedger: ledger.filter((r) => r.status === "open"), ledgerIds: ledger.map((r) => r.id) });
   const byId = new Map(ledger.map((r) => [r.id, r]));
   for (const gr of out.graded) Object.assign(byId.get(gr.id), { status: "graded", result: gr.result, final: gr.final, gradedAt: gr.gradedAt, units: gr.units });
+  // v2.3 fix: puck/run-line picks saved before real prices were read assumed -110 — void them (never counted)
+  for (const r of ledger) if (r.status === "open" && (r.sport === "NHL" || r.sport === "MLB") && r.market === "spread" && r.price === -110 && !/^edgebot-v2\.[3-9]/.test(r.model || ""))
+    Object.assign(r, { status: "void", note: "Voided: saved before EdgeBot read real puck-line prices (assumed -110)." });
   // picks whose game vanished or never finished: void after 4 days (never counted)
   for (const r of ledger) if (r.status === "open" && Date.parse(r.start) < NOW - 4 * 864e5) Object.assign(r, { status: "void", note: "No verified final found." });
   ledger.push(...out.newPicks);
