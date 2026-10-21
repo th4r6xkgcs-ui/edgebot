@@ -60,7 +60,7 @@
   function predict(g, R) {
     const S = SPORTS[g.sport], h = team(R, g.home.abbr), a = team(R, g.away.abbr);
     const ratingM = h.r - a.r + S.hfa, ratingT = R.lg.avgT + h.o + a.d + a.o + h.d;
-    const evidence = Math.min(h.n, a.n), wr0 = ratingWeight(R), wr = evidence < 6 ? 0 : evidence < 10 ? wr0 * (evidence - 5) / 5 : wr0;
+    const evidence = Math.min(h.n, a.n), wr0 = ratingWeight(R), wr = evidence < 4 ? 0 : evidence < 7 ? wr0 * (evidence - 3) / 4 : wr0;
     const mM = marketMargin(g), mT = g.total;
     const margin = mM == null ? (evidence >= 3 ? ratingM : null) : (1 - wr) * mM + wr * ratingM;
     const total = mT == null ? (evidence >= 3 ? ratingT : null) : (1 - wr) * mT + wr * ratingT;
@@ -76,7 +76,7 @@
     const S = SPORTS[g.sport], pred = predict(g, R), act = g.home.score - g.away.score, actT = g.home.score + g.away.score;
     const h = { ...team(R, g.home.abbr) }, a = { ...team(R, g.away.abbr) };
     const expM = h.r - a.r + S.hfa, expT = R.lg.avgT + h.o + a.d + a.o + h.d, err = clamp(act - expM, -3 * S.sdM, 3 * S.sdM), errT = clamp(actT - expT, -3 * S.sdT, 3 * S.sdT);
-    if (pred && pred.marketM != null && h.n >= 6 && a.n >= 6) {
+    if (pred && pred.marketM != null && h.n >= 4 && a.n >= 4) {
       R.blend.seM += (act - pred.marketM) ** 2; R.blend.seR += (act - expM) ** 2; R.blend.n++;
       if (R.blend.n > 400) { R.blend.seM *= 400 / R.blend.n; R.blend.seR *= 400 / R.blend.n; R.blend.n = 400; }
     }
@@ -153,8 +153,8 @@
   function why(g, pred, pick) {
     const S = SPORTS[g.sport], r = [], H = g.home.abbr, A = g.away.abbr, f1 = (x) => (Math.round(x * 10) / 10).toString();
     if (pred.marketM != null) r.push(`Market line: ${pred.marketM >= 0 ? H : A} by ${f1(Math.abs(pred.marketM))}.`);
-    if (pred.evidence >= 3) r.push(`EdgeBot ratings (${pred.homeRating.n}+${pred.awayRating.n} verified games): ${pred.ratingM >= 0 ? H : A} by ${f1(Math.abs(pred.ratingM))}, total ${f1(pred.ratingT)}.`);
-    else r.push(`Ratings still building (${pred.evidence} verified games for the thinner team; 6+ needed), so the market sets this projection.`);
+    if (pred.evidence >= 4) r.push(`EdgeBot ratings (${pred.homeRating.n}+${pred.awayRating.n} verified games): ${pred.ratingM >= 0 ? H : A} by ${f1(Math.abs(pred.ratingM))}, total ${f1(pred.ratingT)}.`);
+    else r.push(`Ratings still building (${pred.evidence} verified games for the thinner team; 4+ needed), so the market sets this projection.`);
     r.push(`Blend: ${Math.round(pred.wr * 100)}% EdgeBot ratings, ${Math.round((1 - pred.wr) * 100)}% market. ${(R0 => R0)(pred.blendN) >= 15 ? `Set from ${pred.blendN} ${S.label} finals scored against the closing line.` : `Starting weight until 15 ${S.label} finals are scored against the closing line (${pred.blendN || 0} so far).`}`);
     if (pick) r.push(`${pick.label}: ${Math.round(pick.p * 100)}% vs ${Math.round(pick.pMkt * 100)}% priced in (fair odds ${pick.fair > 0 ? "+" : ""}${pick.fair}).`);
     return r;
