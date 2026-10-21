@@ -441,6 +441,15 @@ async function playersCycle({ games, archive, ratings, injuryBooks, nflMeta }) {
   // 3) prop lines for upcoming games → projections → picks
   // v2 player picks only (the first run used unbalanced lines and too little history — never counted)
   const ledger = readJson("playerLedger.json", []).filter((r) => r.mv === 3), have = new Set(ledger.map((r) => r.id)), props = [], unmatched = new Set();
+  // learn the projection-vs-line weight per sport from graded player picks (least squares, shrunk toward the 0.4 start)
+  const propW = {};
+  for (const sp of ["NBA", "NFL"]) {
+    const G = ledger.filter((r) => r.sport === sp && r.status === "graded" && r.actual != null && r.own != null);
+    if (G.length < 40) { propW[sp] = PL.PROP_WEIGHT; continue; }
+    let sxy = 0, sxx = 0; for (const r of G) { const x = r.own - r.line, y = r.actual - r.line; sxy += x * y; sxx += x * x; }
+    const learned = Math.max(0, Math.min(0.7, sxy / (sxx * (1 + 40 / G.length))));
+    propW[sp] = +(PL.PROP_WEIGHT * 40 / (G.length + 40) + learned * G.length / (G.length + 40)).toFixed(3);
+  }
   const laneStats = new Map(); for (const r of ledger) if (r.status === "graded" && r.result !== "P") { const k = `${r.sport}|${r.stat}`, c = laneStats.get(k) || { n: 0, w: 0 }; c.n++; if (r.result === "W") c.w++; laneStats.set(k, c); }
   const upcoming = [...games.values()].filter((g) => g.status === "pre" && ((g.sport === "NBA" && Date.parse(g.start) < NOW + 36 * 3600e3) || (g.sport === "NFL" && Date.parse(g.start) < NOW + 5 * 864e5)) && Date.parse(g.start) > NOW);
   const R = ratings.NBA, half = R ? R.lg.avgT / 2 : 114;
@@ -456,7 +465,7 @@ async function playersCycle({ games, archive, ratings, injuryBooks, nflMeta }) {
       const own = PL.project(g.sport, H, L.stat, { oppFactor }); if (!own) continue;
       // sanity: if EdgeBot's own number is miles from the line, the line knows something (role, injury) — no pick
       const wild = Math.abs(own.mean - L.line) > 1.6 * own.sd;
-      const proj = PL.blendWithLine(own, L.line);
+      const proj = PL.blendWithLine(own, L.line, propW[g.sport]);
       const pH = PL.pHigher(proj, L.line), pickSide = pH >= 0.5 ? "higher" : "lower", p = Math.max(pH, 1 - pH);
       const lane = laneStats.get(`${g.sport}|${L.stat}`), proven = lane && lane.n >= 30 && lane.w / lane.n >= 0.56;
       const tier = wild ? null : PL.propTier(p, proven);
@@ -487,7 +496,7 @@ async function playersCycle({ games, archive, ratings, injuryBooks, nflMeta }) {
   log.push(`${props.length} player lines projected, ${ledger.filter((r) => r.status === "open").length} open player picks, ${graded} graded this run (${Date.now() - t0} ms).`);
   console.log(log.join("\n"));
   writeProfiles({ hist, props, ledger, games, archive, ratings, injuryBooks });
-  return { at: now.toISOString(), props: props.sort((a, b) => b.p - a.p).slice(0, 700), ledger: ledger.slice(-500), record: { w: W, l: Lx, p: G.length - W - Lx }, log };
+  return { at: now.toISOString(), props: props.sort((a, b) => b.p - a.p).slice(0, 700), ledger: ledger.slice(-500), record: { w: W, l: Lx, p: G.length - W - Lx }, weights: propW, log };
 }
 
 /* ------------------------------ profiles (search, player & team pages; loaded on demand) ------------------------------ */

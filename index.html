@@ -943,7 +943,7 @@ function viewPlayers() {
     ${mode === "all" ? `<input class="search" id="psearch" type="search" placeholder="Search a player, team or stat" value="${esc(state.pq || "")}" autocomplete="off">` : ""}
     ${list.length ? list.slice(0, 120).map(playerCard).join("") : `<div class="card empty"><strong>${mode === "picks" ? "No player picks right now" : "No lines match"}</strong>${mode === "picks" ? "Picks appear when EdgeBot’s projection beats the line by enough to matter. NBA picks grow as last season’s box scores finish loading." : "Try another name."}</div>`}
     ${slipLegs().length ? `<div style="height:72px"></div>` : ""}
-    <p class="note">How it works: each player’s recent games (this season weighted most), minutes and the opponent’s defence give a projection; it’s blended with the line, since the line knows about roles and injuries. A pick needs 57%+. Picks are saved before the game and graded from the box score.</p>`;
+    <p class="note">How it works: each player’s recent games (this season weighted most), minutes and the opponent’s defence give a projection; it’s blended with the line (EdgeBot’s share now: ${Object.entries(P.weights || {}).map(([k, v]) => `${k} ${Math.round(v * 100)}%`).join(", ") || "40%"} — learned from graded picks once 40+ exist), since the line knows about roles and injuries. A pick needs 57%+. Picks are saved before the game and graded from the box score.</p>`;
 }
 function loadingOrError() {
   if (state.error) return `<div class="card empty"><strong>Can’t load right now</strong>${esc(state.error)}</div>`;

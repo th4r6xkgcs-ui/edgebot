@@ -10,7 +10,7 @@ Sports picks that learn from every final. **App:** https://th4r6xkgcs-ui.github.
 - **Players (`scripts/players.mjs`):** projections for every NBA/NFL player with a DraftKings prop line (via ESPN) — recent games weighted most, minutes and opponent defence for NBA, nflverse weekly stats for NFL — blended 40/60 with the line. Higher/Lower picks at 57%+, saved before the game and graded from the box score. Underdog's own lines aren't available from a permitted source; check the line in the app.
 - **App (`index.html`):** Picks · Games · Players (10,000 simulations per game on the phone, check your own line) · Record (which models are working) · HQ (3D ops floor).
 - **Pick strength:** 🔥 Warm (2.5–4.5 pt edge), 🔥🔥 Hot (4.5+), 🔥🔥🔥 Fire (7+ from a proven sport/market).
-- Sports: NBA, NFL, college football (FBS), NHL, MLB, Premier League.
+- Sports: NBA, NFL, college football, college basketball, NHL, MLB, Premier League, La Liga, Bundesliga, Serie A, Ligue 1, Champions League, MLS — plus tennis, UFC and esports matchups (Polymarket prices + Elo from verified results).
 
 Research only. EdgeBot never places bets, and nothing here is a guarantee.
 
