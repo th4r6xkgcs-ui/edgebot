@@ -328,6 +328,17 @@ table.lanes th.n{text-align:right}
 .wl .W{background:rgba(69,224,174,.18);color:var(--mint)}.wl .L{background:rgba(255,111,97,.16);color:var(--coral)}.wl .T{background:var(--panel2);color:var(--muted)}
 .prow{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:10px;align-items:center;padding:10px 0;border-top:1px solid var(--line);font-size:14px}
 .prow:first-child{border-top:0}
+.trend{display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;padding:2px 0 6px;margin-right:calc(-1 * max(16px,env(safe-area-inset-right,0px)));scrollbar-width:none}
+.trend::-webkit-scrollbar{display:none}
+.tcard{flex:none;width:min(240px,72vw);scroll-snap-align:start;border-radius:18px;padding:12px 14px;border:1px solid var(--line);text-align:left;color:var(--fg);
+  background:radial-gradient(180px 90px at 100% 0%,color-mix(in srgb,var(--tc) 28%,transparent),transparent 70%),var(--panel);display:flex;flex-direction:column;gap:6px;min-height:118px}
+.tcard .k{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.tcard b{font-family:var(--display);font-size:19px;line-height:1.15}
+.tcard small{color:#C9D1E4;font-size:12.5px;margin-top:auto}
+.stand{display:grid;grid-template-columns:24px minmax(0,1fr) 64px 56px;gap:10px;align-items:center;padding:10px 14px;border-top:1px solid var(--line);width:100%;background:transparent;border-left:0;border-right:0;border-bottom:0;text-align:left;color:inherit}
+.stand:first-child{border-top:0}
+.stand .nm{display:flex;align-items:center;gap:9px;min-width:0;font-weight:600}
+.stand .nm span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 details.how{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-md);padding:2px 14px;margin-bottom:10px}
 details.how summary{cursor:pointer;padding:12px 0;font-weight:700;list-style:none;display:flex;justify-content:space-between}
 details.how summary::after{content:"+";color:var(--muted);font-weight:500}
@@ -586,6 +597,7 @@ function viewPicks() {
         <div class="kpi"><b class="num ${R.units > 0 ? "good" : R.units < 0 ? "bad" : ""}">${R.g.length ? sgn(R.units) + "u" : "—"}</b><span>units, 1u flat</span></div>
         <div class="kpi"><b class="num ${clv.length && beat / clv.length >= 0.5 ? "good" : ""}">${clv.length ? Math.round(100 * beat / clv.length) + "%" : "—"}</b><span>beat the close</span></div>
       </div></section>
+    ${trending()}
     <div class="seg" role="group" aria-label="When">${[["all", "All", total], ["today", "Today", byWhen.today], ["tomorrow", "Tomorrow", byWhen.tomorrow], ["later", "Later", byWhen.later]].map(([k, l, n]) => `<button data-when="${k}" aria-pressed="${state.when === k}">${l}<b>${n}</b></button>`).join("")}</div>
     ${sportChips(allSports)}
     ${best.length ? `<h2 class="sec"><span>Best bets</span><small>highest expected value</small></h2>${best.map((x) => pickCard(x, true)).join("")}` : ""}
@@ -597,6 +609,19 @@ function installTip() {
   let seen = false; try { seen = localStorage.getItem("edgebot-tip") === "1"; } catch {}
   if (!ios || standalone || seen) return "";
   return `<aside class="tip" aria-label="Install EdgeBot"><img src="icons/icon-180.png" alt=""><div><b>Put EdgeBot on your Home Screen</b><br><span style="color:var(--muted)">Tap Share, then <b>Add to Home Screen</b>. Opens full-screen, works offline.</span></div><button data-tipclose="1" aria-label="Dismiss">✕</button></aside>`;
+}
+function trending() {
+  const now = Date.now(), up = games().filter((g) => g.status !== "post" && Date.parse(g.start) > now - 3 * 3600e3), items = [];
+  const rich = up.filter((g) => g.crowd?.money).sort((a, b) => b.crowd.money - a.crowd.money).slice(0, 3);
+  for (const g of rich) items.push({ g, k: "💸 Money", b: `${money(g.crowd.money)} on ${g.away.short || g.away.abbr} vs ${g.home.short || g.home.abbr}`, s: g.crowd.money24 ? `${money(g.crowd.money24)} in the last 24h` : `${esc(sportLabel(g.sport))} · ${when(g.start)}` });
+  const moves = up.map((g) => ({ g, m: lineMove(g) })).filter((x) => x.m).sort((a, b) => Math.abs(b.m.to - b.m.from) / (b.m.kind === "ml" ? 100 : 1) - Math.abs(a.m.to - a.m.from) / (a.m.kind === "ml" ? 100 : 1)).slice(0, 3);
+  for (const { g, m } of moves) items.push({ g, k: "📈 Line move", b: m.text, s: `${g.away.abbr} @ ${g.home.abbr} · since EdgeBot first saw it` });
+  const dis = up.map((g) => ({ g, v: crowdVsBooks(g) })).filter((x) => x.v).sort((a, b) => b.v.pts - a.v.pts).slice(0, 2);
+  for (const { g, v } of dis) items.push({ g, k: "👥 Crowd vs books", b: `Crowd likes ${v.team.short || v.team.abbr} +${Math.round(v.pts * 100)}`, s: `${g.away.abbr} @ ${g.home.abbr} · ${when(g.start)}` });
+  const hot = currentPicks().filter((x) => x.p.tier !== "Lean").slice(0, 2);
+  for (const { g, p } of hot) items.push({ g, k: `${TIER[p.tier].icon} ${TIER[p.tier].name} pick`, b: `${p.label} ${am(p.price)}`, s: `Hits ${pct(p.p)} · needs ${pct(p.pMkt)}` });
+  if (!items.length) return "";
+  return `<h2 class="sec"><span>Trending now</span><small>swipe</small></h2><div class="trend">${items.map((x) => { const c = liveColor(x.g.home); return `<button class="tcard" data-game="${esc(x.g.id)}" style="--tc:${c}"><span class="k">${x.k}</span><b>${esc(x.b)}</b><small>${esc(x.s)}</small></button>`; }).join("")}</div>`;
 }
 function viewGames() {
   if (!state.slate) return loadingOrError();
@@ -640,16 +665,28 @@ function viewCrowd(groups) {
       : `<div class="card empty"><strong>No crowd markets matched yet</strong>Prediction markets list most NBA, NFL, NHL and college games a few days ahead.</div>`}`;
 }
 function viewPower(groups) {
+  if (state.pview === "standings") return viewStandings(groups);
   const P = state.model?.power || {}, sports = Object.keys(P).filter((s) => P[s].length);
   if (!sports.length) return gamesSeg(groups) + `<div class="card empty"><strong>Power ratings are building</strong>They appear once teams have 3+ verified games.</div>`;
   const sp = sports.includes(state.sport) ? state.sport : sports[0], list = P[sp], max = Math.max(...list.map((t) => Math.abs(t.r)), 1), S = SP[sp];
   return `${gamesSeg(groups)}<div class="chips" role="group" aria-label="League">${sports.map((s) => `<button class="chip" data-sport2="${s}" aria-pressed="${s === sp}"><i style="width:7px;height:7px;border-radius:50%;background:${SPORT_DOT[s]}"></i>${esc(sportLabel(s))}</button>`).join("")}</div>
+    <div class="seg" role="group" aria-label="Rank by"><button data-pview="power" aria-pressed="true">Power ratings</button><button data-pview="standings" aria-pressed="false">Standings</button></div>
     <h2 class="sec"><span>${esc(sportLabel(sp))} power ratings</span><small>${S.dist === "normal" ? "points" : "goals/runs"} vs an average team, neutral field</small></h2>
     <div class="card">${list.map((t, i) => { const tm = teamIndex.get(`${sp}|${t.abbr}`) || { abbr: t.abbr }, w = (Math.abs(t.r) / max) * 50;
       return `<button class="power" data-team="${sp}|${esc(t.abbr)}" style="width:100%;background:transparent;border-left:0;border-right:0;border-bottom:0;text-align:left;color:inherit"><span class="rk">${i + 1}</span><span class="nm">${mark(tm, sp)}<span>${esc(tm.short || tm.name || t.abbr)}<small>${esc(tm.record || `${t.n} gp`)}</small></span></span>
         <span class="bar3"><i style="left:${t.r >= 0 ? 50 : 50 - w}%;width:${w}%;background:${t.r >= 0 ? "var(--mint)" : "var(--coral)"}"></i><i style="left:50%;width:1px;background:var(--line2)"></i></span>
         <span class="val ${t.r >= 0 ? "good" : "bad"}">${sgn(t.r, S.dist === "normal" ? 1 : 2)}</span></button>`; }).join("")}</div>
     <p class="note">Built from every verified final this season (last season carried in at 70%). Games vs these ratings are blended with the betting line — see Record → What EdgeBot has learned.</p>`;
+}
+function viewStandings(groups) {
+  if (!profiles) { loadProfiles().then(() => state.tab === "games" && state.day === "power" && render()); return gamesSeg(groups) + `<div class="skel"></div>`; }
+  const has = new Set(profiles.teams.filter((t) => t.w + t.l + t.t > 0).map((t) => t.sport)), sports = Object.keys(SP).filter((x) => has.has(x)), sp = sports.includes(state.sport) ? state.sport : sports[0];
+  const list = profiles.teams.filter((t) => t.sport === sp && t.w + t.l + t.t > 0).sort((a, b) => (b.w + b.t / 2) / Math.max(1, b.w + b.l + b.t) - (a.w + a.t / 2) / Math.max(1, a.w + a.l + a.t) || b.w - a.w || (b.pf - b.pa) - (a.pf - a.pa)).slice(0, sp === "NCAAF" ? 60 : 40);
+  return `${gamesSeg(groups)}<div class="chips" role="group" aria-label="League">${sports.map((s) => `<button class="chip" data-sport2="${s}" aria-pressed="${s === sp}"><i style="width:7px;height:7px;border-radius:50%;background:${SPORT_DOT[s]}"></i>${esc(sportLabel(s))}</button>`).join("")}</div>
+    <div class="seg" role="group" aria-label="Rank by"><button data-pview="power" aria-pressed="false">Power ratings</button><button data-pview="standings" aria-pressed="true">Standings</button></div>
+    <h2 class="sec"><span>${esc(sportLabel(sp))} standings</span><small>by win % · this season</small></h2>
+    <div class="card">${list.map((t, i) => `<button class="stand" data-team="${sp}|${esc(t.abbr)}"><span class="rk num" style="color:var(--dim);text-align:right">${i + 1}</span><span class="nm">${mark(t, sp)}<span>${esc(t.short || t.name)}</span></span><span class="num" style="text-align:right">${t.w}-${t.l}${t.t ? "-" + t.t : ""}</span><span class="num ${(t.pf - t.pa) >= 0 ? "good" : "bad"}" style="text-align:right">${t.pf != null ? sgn(t.pf - t.pa, 1) : ""}</span></button>`).join("")}</div>
+    <p class="note">Last column: average scoring margin per game. Tap a team for its page.</p>`;
 }
 function spark(rows) {
   if (rows.length < 2) return `<p class="note" style="padding:8px 2px">The units chart appears after a few graded picks.</p>`;
@@ -1033,7 +1070,8 @@ function render() {
   const m = state.model, fresh = m?.lastRun && Date.now() - Date.parse(m.lastRun) < 4 * 3600e3;
   $("#dot").className = "dot " + (fresh ? "ok" : m ? "warn" : "");
   $("#status").textContent = m ? `Updated ${ago(m.lastRun)}` : state.slate ? "Waiting for first run" : "Connecting…";
-  $("#today").textContent = m ? `${(Object.values(m.archive || {}).reduce((a, b) => a + b, 0)).toLocaleString()} finals learned` : "Sports picks that learn";
+  const fin = Object.values(m?.archive || {}).reduce((a, b) => a + b, 0);
+  $("#today").textContent = m ? `${fin >= 1000 ? (fin / 1000).toFixed(1) + "K" : fin} finals learned` : "Sports picks that learn";
   const views = { picks: viewPicks, games: viewGames, players: viewPlayers, record: viewRecord, hq: viewHQ };
   const hadCanvas = $("#hq-canvas");
   if (state.tab === "hq" && hadCanvas && hq.ready) {
@@ -1051,6 +1089,7 @@ document.addEventListener("click", (e) => {
   if (t.dataset.day) { state.day = t.dataset.day; render(); return; }
   if (t.dataset.when) { state.when = t.dataset.when; render(); return; }
   if (t.dataset.pmode) { state.pmode = t.dataset.pmode; render(); return; }
+  if (t.dataset.pview) { state.pview = t.dataset.pview; render(); return; }
   if (t.dataset.slip) { const id = t.dataset.slip; if (slip.has(id)) slip.delete(id); else if (slip.size >= 5) { toast("Pick’em slips max out at 5 picks"); return; } else slip.add(id); saveSlip();
     const inSheet = t.closest(".sheet"); render(); if (inSheet) openSlip(); else toast(slip.has(id) ? `Added · ${slip.size}-pick slip` : "Removed from slip"); return; }
   if (t.dataset.openslip) { openSlip(); return; }
