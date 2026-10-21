@@ -429,7 +429,7 @@ function crowdChip(g, p) {
 function ring(p, pMkt, color) {
   const R = 32, C = 2 * Math.PI * R, a = Math.max(0, Math.min(1, p)), m = Math.max(0, Math.min(1, pMkt));
   const tick = (() => { const ang = m * 2 * Math.PI; return `<line x1="${38 + 26 * Math.cos(ang)}" y1="${38 + 26 * Math.sin(ang)}" x2="${38 + 38 * Math.cos(ang)}" y2="${38 + 38 * Math.sin(ang)}" stroke="#EEF1F8" stroke-width="2" stroke-linecap="round"/>`; })();
-  return `<div class="ring" role="img" aria-label="EdgeBot ${pct(p)}, market ${pct(pMkt)}"><svg viewBox="0 0 76 76"><circle cx="38" cy="38" r="${R}" fill="none" stroke="#17213A" stroke-width="7"/><circle cx="38" cy="38" r="${R}" fill="none" stroke="${color}" stroke-width="7" stroke-linecap="round" stroke-dasharray="${(a * C).toFixed(1)} ${C.toFixed(1)}"/>${tick}</svg><div class="v"><div><b>${pct(p)}</b><small>vs ${pct(pMkt)}</small></div></div></div>`;
+  return `<div class="ring" role="img" aria-label="Hits ${pct(p)} by EdgeBot’s math, needs ${pct(pMkt)} to break even"><svg viewBox="0 0 76 76"><circle cx="38" cy="38" r="${R}" fill="none" stroke="#17213A" stroke-width="7"/><circle cx="38" cy="38" r="${R}" fill="none" stroke="${color}" stroke-width="7" stroke-linecap="round" stroke-dasharray="${(a * C).toFixed(1)} ${C.toFixed(1)}"/>${tick}</svg><div class="v"><div><b>${pct(p)}</b><small>needs ${pct(pMkt)}</small></div></div></div>`;
 }
 function teamLine(t, sport, on, rank) {
   return `<div class="team ${on ? "on" : ""}">${mark(t, sport)}<span>${rank ? `<small class="num" style="color:var(--dim)">#${rank}</small> ` : ""}${esc(t.short || t.name)}</span>${t.record ? `<em>${esc(t.record)}</em>` : ""}</div>`;
@@ -449,7 +449,7 @@ function pickCard({ g, p, id }, feat) {
     ${why ? `<p class="reason">${esc(why)}</p>` : ""}
     ${crowdChip(g, p)}
     ${(() => { const m = moveDirection(g, p); return m ? `<span class="move ${m.toward ? "with" : "against"}" title="Line movement since EdgeBot first saw it">${m.toward ? "▲" : "▼"} ${esc(m.text)} · ${m.toward ? "moving our way" : "moving against"}</span>` : ""; })()}
-    <div class="stats"><div><span>Edge</span><b class="good">${sgn(p.edge * 100)}%</b></div><div><span>EV</span><b>${sgn(p.ev * 100)}%</b></div><div><span>Fair</span><b>${am(p.fair)}</b></div><div><span>Stake</span><b>${(p.stake ?? 0.25).toFixed(2).replace(/0$/, "")}u</b></div></div>
+    <div class="stats" style="grid-template-columns:repeat(3,minmax(0,1fr))"><div><span>Hits</span><b class="good">${pct(p.p)}</b></div><div><span>Needs</span><b>${pct(p.pMkt)}</b></div><div><span>Bet</span><b>${(p.stake ?? 0.25)}u</b></div></div>
   </article>`;
 }
 function winBar(g, aP, hP, dP = 0) {
@@ -715,7 +715,9 @@ function openGame(id) {
         <div class="t">${mark(g.home, g.sport, true)}<b>${esc(g.home.short || g.home.name)}</b><small>${esc(g.home.record || "home")}</small></div></div>
     </div>
     <div class="sheet-body">
-    ${pk ? `<div class="callout">${tierPill(pk.tier)} <b>${esc(pk.label)}</b> <span class="num">${am(pk.price)}</span><br><span style="color:#C9D1E4">EdgeBot ${pct1(pk.p)} vs ${pct1(pk.pMkt)} priced in · fair ${am(pk.fair)} · EV ${sgn(pk.ev * 100)}% · stake ${(pk.stake ?? 0.25)}u (¼ Kelly)</span>${pk.note ? `<br><small style="color:var(--muted)">${esc(pk.note)}</small>` : ""}</div>` : ""}
+    ${pk ? `<div class="callout">${tierPill(pk.tier)} <b>${esc(pk.label)}</b> <span class="num">${am(pk.price)}</span>
+      <p style="margin:8px 0 0;font-size:15px;line-height:1.45;color:var(--fg)">EdgeBot thinks this hits <b class="good">${pct(pk.p)}</b> of the time. At ${am(pk.price)} odds you only need <b>${pct(pk.pMkt)}</b> to break even — that gap is the edge.</p>
+      <p style="margin:6px 0 0;font-size:13.5px;color:var(--muted)">Suggested bet: <b style="color:var(--fg)">${(pk.stake ?? 0.25)} unit${(pk.stake ?? 0.25) === 1 ? "" : "s"}</b> (1 unit = 1% of your bankroll).${pk.note ? ` ${esc(pk.note)}` : ""}</p></div>` : ""}
     ${p && !fin ? `<div class="probbar">${winBar(g, s ? s.away : p.pAway, s ? s.home : p.pHome, s ? s.draw : p.pDraw)}<div class="lbl"><span><i style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${ca};margin-right:6px"></i>${esc(g.away.abbr)} ${pct1(s ? s.away : p.pAway)}</span>${(s ? s.draw : p.pDraw) > 0.01 ? `<span>Draw ${pct1(s ? s.draw : p.pDraw)}</span>` : ""}<span>${pct1(s ? s.home : p.pHome)} ${esc(g.home.abbr)}<i style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${ch};margin-left:6px"></i></span></div></div>
       <div class="tiles">
         ${g.spread != null && s ? `<div class="tile"><span>${esc(g.home.abbr)} ${g.spread > 0 ? "+" : ""}${g.spread} covers</span><b>${pct1(s.cover / (1 - s.push))}</b><small>${s.push > 0.005 ? `push ${pct1(s.push)}` : "spread"}</small></div>` : ""}
