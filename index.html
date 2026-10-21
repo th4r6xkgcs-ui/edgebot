@@ -261,12 +261,48 @@ table.lanes th.n{text-align:right}
 .call span{font-size:15px;color:#C9D1E4}
 .plain{margin:6px 16px 0 18px;font-size:14px;color:#C9D1E4}
 .plain b{color:var(--fg)}
-.lastg{display:flex;align-items:flex-end;gap:4px;height:46px;margin:10px 16px 12px 18px;position:relative}
+.lastg{display:flex;align-items:flex-end;gap:4px;height:46px;margin:24px 16px 12px 18px;position:relative}
 .lastg i{flex:1;border-radius:3px 3px 0 0;background:#2C3B5E;min-height:3px;position:relative}
 .lastg i.over{background:rgba(69,224,174,.75)}
 .lastg .ln{position:absolute;left:0;right:0;border-top:1.5px dashed rgba(238,241,248,.7)}
 .lastg small{position:absolute;right:0;top:-16px;font:600 10.5px var(--mono);color:var(--muted)}
 .search{width:100%;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px 14px;color:var(--fg);font:500 16px var(--body);margin-bottom:10px}
+/* glow + flair */
+.pick{background:radial-gradient(420px 160px at 100% 0%,color-mix(in srgb,var(--tc) 16%,transparent),transparent 70%),var(--panel)}
+.pick.feat{background:radial-gradient(420px 180px at 100% 0%,color-mix(in srgb,var(--tc) 20%,transparent),transparent 70%),linear-gradient(160deg,rgba(255,181,71,.08),var(--panel) 55%)}
+.pick.fire{border-color:transparent;background-clip:padding-box;isolation:isolate}
+.pick.fire::after{content:"";position:absolute;inset:-1px;border-radius:inherit;padding:1.5px;background:conic-gradient(from var(--ang,0deg),#FF5A4E,#FFB547,#FFCF85,#FF5A4E);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;animation:spin 4s linear infinite;pointer-events:none;z-index:-1}
+@property --ang{syntax:"<angle>";inherits:false;initial-value:0deg}
+@keyframes spin{to{--ang:360deg}}
+.embers{position:absolute;inset:0;pointer-events:none;overflow:hidden;border-radius:inherit}
+.embers i{position:absolute;bottom:-6px;width:4px;height:4px;border-radius:50%;background:#FFB547;box-shadow:0 0 8px #FF8A3D;opacity:0;animation:ember 3.2s ease-in infinite}
+@keyframes ember{0%{transform:translateY(0) scale(1);opacity:0}15%{opacity:.9}100%{transform:translateY(-140px) translateX(var(--dx,10px)) scale(.3);opacity:0}}
+#view{animation:viewin .28s ease}
+@keyframes viewin{from{opacity:0;transform:translateY(8px)}}
+.pick:active,.game:active,.crowd-row:active{transform:scale(.985);transition:transform .08s}
+/* slip */
+.addslip{border:1px solid var(--line2);background:rgba(255,255,255,.04);border-radius:12px;height:38px;padding:0 12px;font-weight:700;font-size:13px;color:var(--fg);display:inline-flex;align-items:center;gap:6px}
+.addslip[aria-pressed="true"]{background:var(--amber);color:var(--bg);border-color:var(--amber)}
+.pfoot{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:0 16px 14px 18px}
+.slipbar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:19;width:min(480px,calc(100% - 20px));border-radius:20px;padding:12px 14px;display:flex;align-items:center;gap:12px;
+  background:linear-gradient(135deg,#FFB547,#FF8A3D);color:#1A1206;box-shadow:0 14px 40px rgba(255,138,61,.35);border:0;text-align:left;animation:pop .3s cubic-bezier(.2,1.4,.4,1)}
+@keyframes pop{from{transform:translateX(-50%) translateY(20px) scale(.9);opacity:0}}
+.slipbar b{font-family:var(--display);font-size:18px}
+.slipbar small{display:block;font-size:12.5px;opacity:.8;font-weight:600}
+.slipbar .go{margin-left:auto;font:800 14px var(--body);background:#1A1206;color:#FFCF85;border-radius:12px;padding:9px 12px}
+.leg{display:grid;grid-template-columns:40px minmax(0,1fr) auto auto;gap:10px;align-items:center;padding:10px 0;border-top:1px solid var(--line)}
+.leg:first-child{border-top:0}
+.leg img{width:40px;height:40px;border-radius:50%;object-fit:cover;background:var(--panel2)}
+.leg b{display:block;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.leg small{color:var(--muted);font-size:12px}
+.leg .x{border:0;background:var(--panel2);width:32px;height:32px;border-radius:10px;color:var(--muted)}
+.payout{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:12px}
+.payout div{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px;text-align:center}
+.payout span{display:block;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+.payout b{font:800 22px var(--display)}
+.gauge{height:10px;border-radius:6px;background:var(--panel2);overflow:hidden;margin-top:12px}
+.gauge i{display:block;height:100%;background:linear-gradient(90deg,#FF6F61,#FFB547,#45E0AE)}
+#confetti{position:fixed;inset:0;pointer-events:none;z-index:80}
 details.how{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-md);padding:2px 14px;margin-bottom:10px}
 details.how summary{cursor:pointer;padding:12px 0;font-weight:700;list-style:none;display:flex;justify-content:space-between}
 details.how summary::after{content:"+";color:var(--muted);font-weight:500}
@@ -296,6 +332,7 @@ details.how ol{padding-left:18px;margin:0 0 12px}
   <button data-tab="record"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 19V11M12 19V5M18 19v-6"/></svg>Record</button>
   <button data-tab="hq"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/></svg>HQ</button>
 </nav>
+<div id="slip-root"></div>
 <div id="sheet-root"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -356,7 +393,7 @@ async function connect() {
       if (!r.ok) throw new Error("The first update hasn’t finished yet. Check back in a few minutes.");
       const d = await r.json();
       state.players = d.players || null; state.slate = d.slate; state.model = d.model; state.ledger = d.ledger || []; state.runs = d.runs || []; state.teams = d.teams || {}; state.error = "";
-      simCache.clear(); indexTeams(); render(); if (hq.ready) hq.update();
+      simCache.clear(); indexTeams(); render(); if (hq.ready) hq.update(); celebrateWins();
     } catch (e) { state.error = navigator.onLine === false ? "You’re offline — showing the last loaded picks." : e.message; if (!state.slate) render(); }
   };
   await load();
@@ -453,11 +490,12 @@ function ring(p, pMkt, color) {
 function teamLine(t, sport, on, rank) {
   return `<div class="team ${on ? "on" : ""}">${mark(t, sport)}<span>${rank ? `<small class="num" style="color:var(--dim)">#${rank}</small> ` : ""}${esc(t.short || t.name)}</span>${t.record ? `<em>${esc(t.record)}</em>` : ""}</div>`;
 }
+const embers = () => `<span class="embers" aria-hidden="true">${Array.from({ length: 7 }, (_, i) => `<i style="left:${8 + i * 13}%;animation-delay:${(i * 0.45).toFixed(2)}s;--dx:${(i % 2 ? -1 : 1) * (6 + i * 3)}px"></i>`).join("")}</span>`;
 function pickCard({ g, p, id }, feat) {
   const saved = state.saved.includes(id), side = pickedTeam(g, p), tc = side ? liveColor(g[side]) : "var(--amber)";
   const ringColor = p.tier === "Strong" ? "#FF5A4E" : p.tier === "Value" ? "#FF8A3D" : "#FFCF85";
   const why = topReason(g);
-  return `<article class="card pick ${feat ? "feat" : ""}" style="--tc:${tc}">
+  return `<article class="card pick ${feat ? "feat" : ""} ${p.tier === "Strong" ? "fire" : ""}" style="--tc:${tc}">${p.tier === "Strong" ? embers() : ""}
     <div class="pick-top"><span class="badge"><i style="background:${SPORT_DOT[g.sport]}"></i>${esc(g.sport === "NCAAF" ? "CFB" : g.sport === "EPL" ? "EPL" : g.sport)} · ${esc(when(g.start))}</span>
       <span style="display:flex;align-items:center;gap:6px">${tierPill(p.tier)}<button class="star" data-save="${esc(id)}" aria-pressed="${saved}" aria-label="${saved ? "Unsave" : "Save"} pick">${saved ? "★" : "☆"}</button></span></div>
     <button class="pick-main" data-game="${esc(g.id)}">
@@ -659,19 +697,72 @@ function viewHQ() {
     <h2 class="sec"><span>Activity</span><small>${m?.runs ?? 0} runs</small></h2>
     <div class="card"><ul class="feed">${state.runs.map((r) => `<li><time>${esc(new Date(r.at).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }))}</time>${esc((r.log || []).join(" "))}</li>`).join("") || `<li>No runs recorded yet.</li>`}</ul></div>`;
 }
+/* ------------------------------ pick'em slip ------------------------------ */
+const PAYOUT = { 2: 3, 3: 6, 4: 10, 5: 20 }; // standard Underdog pick'em (all must hit); check the app for your entry's exact payout
+const slip = new Set((() => { try { return JSON.parse(localStorage.getItem("edgebot-slip") || "[]"); } catch { return []; } })());
+const saveSlip = () => { try { localStorage.setItem("edgebot-slip", JSON.stringify([...slip])); } catch {} };
+const slipLegs = () => [...slip].map((id) => (state.players?.props || []).find((x) => x.id === id)).filter((x) => x && Date.parse(x.start) > Date.now());
+function slipBar() {
+  const L = slipLegs(); if (!L.length || state.tab !== "players") return "";
+  const all = L.reduce((p, x) => p * x.p, 1), mult = PAYOUT[L.length];
+  return `<button class="slipbar" data-openslip="1"><span style="font-size:24px">🎟️</span><span><b>${L.length}-pick slip</b><small>${mult ? `Pays ${mult}× · all hit ${pct(all)}` : L.length === 1 ? "Add 1+ more pick" : "Max 5 picks"}</small></span><span class="go">View</span></button>`;
+}
+function openSlip() {
+  const L = slipLegs(), n = L.length, mult = PAYOUT[n], all = L.reduce((p, x) => p * x.p, 1), ev = mult ? all * mult - 1 : null;
+  const sameGame = new Set(L.map((x) => x.gameId)).size < n;
+  $("#sheet-root").innerHTML = `<div class="sheet-bg" data-close="1"><div class="sheet" role="dialog" aria-modal="true" aria-label="Pick'em slip"><div class="banner" style="--ca:#FFB54755;--ch:#FF8A3D55"><div class="grab"></div><button class="close" data-close="1" aria-label="Close">✕</button>
+    <div class="vs" style="grid-template-columns:1fr"><div class="t"><span style="font-size:40px">🎟️</span><b>${n}-pick slip</b><small>${mult ? `Standard pick’em pays ${mult}× if every pick hits` : n < 2 ? "Add at least 2 picks" : "Pick’em entries max out at 5 picks"}</small></div></div></div>
+    <div class="sheet-body">
+      <div class="card" style="padding:4px 14px">${L.map((x) => `<div class="leg"><img src="${esc(x.head)}" alt="" onerror="this.style.visibility='hidden'"><div style="min-width:0"><b>${esc(x.name)}</b><small>${x.side === "higher" ? "▲ Higher" : "▼ Lower"} ${x.line} ${esc(x.label)}</small></div><span class="num good">${pct(x.p)}</span><button class="x" data-slip="${esc(x.id)}" aria-label="Remove">✕</button></div>`).join("") || `<p class="note">Your slip is empty.</p>`}</div>
+      ${n >= 2 && mult ? `<div class="payout"><div><span>All hit</span><b>${pct(all)}</b></div><div><span>Pays</span><b>${mult}×</b></div><div><span>Expected</span><b class="${ev >= 0 ? "good" : "bad"}">${sgn(ev * 100, 0)}%</b></div></div>
+        <div class="gauge"><i style="width:${Math.min(100, Math.max(4, (all * mult / 2) * 100)).toFixed(0)}%"></i></div>
+        <p class="note">${ev >= 0 ? `By EdgeBot’s numbers this slip returns about ${sgn(ev * 100, 0)}% on average — it still loses ${pct(1 - all)} of the time.` : `By EdgeBot’s numbers this slip loses money on average. Swap in stronger picks or drop to fewer legs.`}${sameGame ? " Two picks from the same game can move together, so the real odds may differ." : ""} Check every line in the app before you enter.${(() => { const r = state.players?.record || { w: 0, l: 0 }; return r.w + r.l < 50 ? ` <b style="color:var(--fg)">Player picks are new</b> — ${r.w + r.l ? `${r.w}–${r.l} so far` : "none graded yet"} — so treat these numbers as unproven until the record builds.` : ""; })()}</p>` : ""}
+      <div class="actions"><button class="btn" data-clearslip="1">Clear slip</button><button class="btn primary" data-copyslip="1">Copy picks</button></div>
+    </div></div></div>`;
+  document.body.style.overflow = "hidden";
+}
+
+/* ------------------------------ fun ------------------------------ */
+function countUp(root) {
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  root.querySelectorAll(".hero .kpi b, .hero h2 em").forEach((el) => {
+    const m = el.textContent.match(/^([^\d−-]*)([−-]?)(\d+(?:\.\d+)?)(.*)$/); if (!m || el.dataset.counted) return;
+    const target = parseFloat(m[3]), dec = (m[3].split(".")[1] || "").length, t0 = performance.now(); el.dataset.counted = "1";
+    const step = (t) => { const k = Math.min(1, (t - t0) / 700), e = 1 - Math.pow(1 - k, 3); el.textContent = m[1] + m[2] + (target * e).toFixed(dec) + m[4]; if (k < 1) requestAnimationFrame(step); };
+    requestAnimationFrame(step);
+  });
+}
+function confetti(n = 140) {
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const c = Object.assign(document.createElement("canvas"), { id: "confetti" }); document.body.append(c);
+  const x = c.getContext("2d"), W = (c.width = innerWidth * devicePixelRatio), H = (c.height = innerHeight * devicePixelRatio), cols = ["#FFB547", "#45E0AE", "#FF6F61", "#8F80FF", "#5CC8FF", "#FFCF85"];
+  const ps = Array.from({ length: n }, () => ({ x: W / 2 + (Math.random() - 0.5) * W * 0.3, y: H * 0.35, vx: (Math.random() - 0.5) * 18, vy: -Math.random() * 22 - 6, r: Math.random() * 6 + 4, c: cols[(Math.random() * cols.length) | 0], a: Math.random() * 6, va: (Math.random() - 0.5) * 0.4 }));
+  let f = 0; const tick = () => { x.clearRect(0, 0, W, H); for (const p of ps) { p.vy += 0.7; p.x += p.vx; p.y += p.vy; p.a += p.va; x.save(); x.translate(p.x, p.y); x.rotate(p.a); x.fillStyle = p.c; x.fillRect(-p.r, -p.r / 2, p.r * 2, p.r); x.restore(); } if (++f < 140) requestAnimationFrame(tick); else c.remove(); }; tick();
+}
+/** Celebrate saved picks that won since the last visit. */
+function celebrateWins() {
+  let seen; try { seen = new Set(JSON.parse(localStorage.getItem("edgebot-celebrated") || "[]")); } catch { seen = new Set(); }
+  const wins = state.ledger.filter((r) => r.result === "W" && state.saved.includes(r.id) && !seen.has(r.id));
+  if (!wins.length) return;
+  wins.forEach((r) => seen.add(r.id)); try { localStorage.setItem("edgebot-celebrated", JSON.stringify([...seen].slice(-500))); } catch {}
+  setTimeout(() => { confetti(); toast(`🎉 ${wins.length === 1 ? `${wins[0].label} hit!` : `${wins.length} saved picks hit!`}`); }, 400);
+}
+
 /* ------------------------------ players ------------------------------ */
 const statShort = (x) => x.label;
 function playerCard(x) {
   const g = games().find((y) => y.id === x.gameId), hi = x.side === "higher", maxv = Math.max(x.line * 1.6, ...x.last, 1);
   const team = teamIndex.get(`${x.sport}|${x.team}`) || { abbr: x.team }, opp = teamIndex.get(`${x.sport}|${x.opp}`) || { abbr: x.opp };
   const hitsLast = x.last.filter((v) => (hi ? v > x.line : v < x.line)).length;
-  return `<article class="card pick" style="--tc:${hi ? "#45E0AE" : "#7FB8FF"}">
+  const inSlip = slip.has(x.id);
+  return `<article class="card pick ${x.tier === "Strong" ? "fire" : ""}" style="--tc:${hi ? "#45E0AE" : "#7FB8FF"}">${x.tier === "Strong" ? embers() : ""}
     <div class="pp"><img class="head" src="${esc(x.head)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">
       <div class="who"><b>${esc(x.name)}</b><small>${mark(team, x.sport)} ${esc(x.team)} ${x.home ? "vs" : "@"} ${esc(x.opp)} · ${esc(when(x.start))}${x.status ? ` · <span class="bad">${esc(x.status === "QUESTIONABLE" ? "Questionable" : "Day-to-day")}</span>` : ""}</small></div>
       ${x.tier ? tierPill(x.tier) : ""}</div>
     <div class="call"><b class="${hi ? "hi" : "lo"}">${hi ? "▲ Higher" : "▼ Lower"}</b><span>${x.line} ${esc(statShort(x))}</span></div>
     <p class="plain">EdgeBot expects <b>${x.proj.toFixed(1)}</b> and thinks ${hi ? "higher" : "lower"} hits <b class="good">${pct(x.p)}</b> of the time. Went ${hi ? "over" : "under"} in <b>${hitsLast} of his last ${x.last.length}</b>.</p>
     <div class="lastg" aria-label="Last ${x.last.length} games">${x.last.map((v) => `<i class="${v > x.line ? "over" : ""}" style="height:${Math.max(4, (v / maxv) * 100).toFixed(0)}%" title="${v}"></i>`).join("")}<span class="ln" style="bottom:${((x.line / maxv) * 100).toFixed(0)}%"></span><small>line ${x.line}</small></div>
+    <div class="pfoot"><span class="note" style="margin:0;padding:0">${x.games} games of history</span><button class="addslip" data-slip="${esc(x.id)}" aria-pressed="${inSlip}">${inSlip ? "✓ In slip" : "+ Add to slip"}</button></div>
   </article>`;
 }
 function viewPlayers() {
@@ -692,6 +783,7 @@ function viewPlayers() {
     <div class="chips" role="group" aria-label="Sport">${["ALL", ...Object.keys(SP).filter((s) => sports.includes(s))].map((s) => `<button class="chip" data-psport="${s}" aria-pressed="${(state.psport || "ALL") === s}">${s === "ALL" ? "All" : sportLabel(s)}${s !== "ALL" ? `<b>${sports.filter((x) => x === s).length}</b>` : ""}</button>`).join("")}</div>
     ${mode === "all" ? `<input class="search" id="psearch" type="search" placeholder="Search a player, team or stat" value="${esc(state.pq || "")}" autocomplete="off">` : ""}
     ${list.length ? list.slice(0, 120).map(playerCard).join("") : `<div class="card empty"><strong>${mode === "picks" ? "No player picks right now" : "No lines match"}</strong>${mode === "picks" ? "Picks appear when EdgeBot’s projection beats the line by enough to matter. NBA picks grow as last season’s box scores finish loading." : "Try another name."}</div>`}
+    ${slipLegs().length ? `<div style="height:72px"></div>` : ""}
     <p class="note">How it works: each player’s recent games (this season weighted most), minutes and the opponent’s defence give a projection; it’s blended with the line, since the line knows about roles and injuries. A pick needs 57%+. Picks are saved before the game and graded from the box score.</p>`;
 }
 function loadingOrError() {
@@ -753,7 +845,7 @@ async function sharePick(g) {
   try { if (navigator.share) { await navigator.share({ title: "EdgeBot", text, url: location.href.split("#")[0] }); return; } } catch (e) { if (e?.name === "AbortError") return; }
   try { await navigator.clipboard.writeText(text + " " + location.href.split("#")[0]); toast("Copied to clipboard"); } catch { toast("Couldn’t share on this device"); }
 }
-function toast(msg) { const t = Object.assign(document.createElement("div"), { textContent: msg, role: "status" }); Object.assign(t.style, { position: "fixed", left: "50%", bottom: "calc(96px + env(safe-area-inset-bottom,0px))", transform: "translateX(-50%)", background: "#EEF1F8", color: "#090D1A", padding: "10px 16px", borderRadius: "999px", fontWeight: "700", zIndex: 60, fontSize: "14px" }); document.body.append(t); setTimeout(() => t.remove(), 1800); }
+function toast(msg) { const t = Object.assign(document.createElement("div"), { textContent: msg, role: "status" }); Object.assign(t.style, { position: "fixed", left: "50%", bottom: $(".slipbar") ? "calc(168px + env(safe-area-inset-bottom,0px))" : "calc(96px + env(safe-area-inset-bottom,0px))", transform: "translateX(-50%)", background: "#EEF1F8", color: "#090D1A", padding: "10px 16px", borderRadius: "999px", fontWeight: "700", zIndex: 60, fontSize: "14px" }); document.body.append(t); setTimeout(() => t.remove(), 1800); }
 function injuryBlock(g) {
   const inj = g.injuries; if (!inj || !(inj.home?.length || inj.away?.length)) return "";
   const col = (side) => `<div><b>${esc(g[side].short || g[side].abbr)}</b>${(inj[side] || []).slice(0, 6).map((p) => `<p><span>${esc(p.name)}${p.pos ? ` <small style="color:var(--dim)">${esc(p.pos)}</small>` : ""}</span><span>${esc(p.status === "DAY_TO_DAY" ? "DTD" : p.status.slice(0, 5))}</span></p>`).join("") || `<p style="color:var(--dim)">None reported</p>`}</div>`;
@@ -826,6 +918,7 @@ function render() {
     $("#view").replaceChildren(...tmp.childNodes); hq.update(); return;
   }
   $("#view").innerHTML = views[state.tab]();
+  $("#slip-root").innerHTML = slipBar(); countUp($("#view"));
   if (state.tab === "hq") hq.mount($("#hq-canvas")); else hq.pause();
 }
 document.addEventListener("click", (e) => {
@@ -835,6 +928,11 @@ document.addEventListener("click", (e) => {
   if (t.dataset.day) { state.day = t.dataset.day; render(); return; }
   if (t.dataset.when) { state.when = t.dataset.when; render(); return; }
   if (t.dataset.pmode) { state.pmode = t.dataset.pmode; render(); return; }
+  if (t.dataset.slip) { const id = t.dataset.slip; if (slip.has(id)) slip.delete(id); else if (slip.size >= 5) { toast("Pick’em slips max out at 5 picks"); return; } else slip.add(id); saveSlip();
+    const inSheet = t.closest(".sheet"); render(); if (inSheet) openSlip(); else toast(slip.has(id) ? `Added · ${slip.size}-pick slip` : "Removed from slip"); return; }
+  if (t.dataset.openslip) { openSlip(); return; }
+  if (t.dataset.clearslip) { slip.clear(); saveSlip(); closeSheet(); render(); return; }
+  if (t.dataset.copyslip) { const txt = slipLegs().map((x) => `${x.name} ${x.side === "higher" ? "Higher" : "Lower"} ${x.line} ${x.label}`).join("\n"); navigator.clipboard?.writeText(txt).then(() => toast("Copied — paste into your notes or the app"), () => toast("Couldn’t copy on this device")); return; }
   if (t.dataset.psport) { state.psport = t.dataset.psport; render(); return; }
   if (t.dataset.save) { const id = t.dataset.save; state.saved = state.saved.includes(id) ? state.saved.filter((x) => x !== id) : [...state.saved, id]; saveSaved(); render();
     if (t.dataset.keep) { const on = state.saved.includes(id); t.textContent = on ? "★ Saved" : "☆ Save pick"; t.classList.toggle("primary", !on); toast(on ? "Saved — find it under ★ Saved" : "Removed from saved"); } return; }
