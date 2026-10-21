@@ -5,6 +5,7 @@ const require = createRequire(import.meta.url);
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const E = require(path.join(ROOT, "engine.js"));
 import * as PL from "./players.mjs";
+import { matchCycle } from "./match.mjs";
 const DATA = path.join(ROOT, "data");
 const now = new Date(process.env.EDGEBOT_NOW || Date.now()), NOW = now.getTime();
 const readJson = (f, d) => { try { return JSON.parse(fs.readFileSync(path.join(DATA, f), "utf8")); } catch { return d; } };
@@ -368,6 +369,11 @@ async function main() {
     if (g.crowd?.pHome != null && side) r.crowdP = +(side === "home" ? g.crowd.pHome : 1 - g.crowd.pHome - (g.crowd.pDraw || 0)).toFixed(4);
     if (g.espnPredictor && side) r.espnP = g.espnPredictor[side]; }
   ledger.push(...out.newPicks);
+  // tennis, UFC, esports (crowd markets + Elo); their picks share the ledger and are graded from verified winners
+  const mc = await matchCycle({ getJson, nowISO: now.toISOString(), ledger });
+  out.slate.push(...mc.slate); ledger.push(...mc.newPicks); out.log.push(...mc.log);
+  for (const r of mc.graded) { const k = `${r.sport}|moneyline`, L = (out.model.lanes[k] ||= { n: 0, w: 0, l: 0, p: 0, sumP: 0, sumY: 0, brier: 0, base: 0, units: 0 }), y = r.result === "W" ? 1 : 0;
+    L.n++; y ? L.w++ : L.l++; L.sumP += r.pRaw; L.sumY += y; L.brier += (r.pRaw - y) ** 2; L.base += (r.pMkt - y) ** 2; L.units += r.units; }
   // Closing-line value: once a game has started, compare each pick's number with the last pregame line.
   // Beating the close consistently is the quickest honest sign of a real edge (far faster than W/L).
   for (const r of ledger) {

@@ -383,7 +383,7 @@ function dayLabel(iso) {
 const timeOf = (iso) => new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 function when(iso) { const l = dayLabel(iso); return (l === "Today" ? "" : l.replace(/,.*$/, "").replace(/^(\w{3})\w+/, "$1") + " ") + timeOf(iso); }
 function ago(iso) { if (!iso) return "never"; const m = Math.round((Date.now() - Date.parse(iso)) / 6e4); return m < 1 ? "just now" : m < 60 ? m + "m ago" : m < 1440 ? Math.round(m / 60) + "h ago" : Math.round(m / 1440) + "d ago"; }
-const sportLabel = (s) => SP[s]?.label || s;
+const sportLabel = (s) => SP[s]?.label || { TENNIS: "Tennis", UFC: "UFC", ESPORTS: "Esports" }[s] || s;
 /** Pick strength as shown to people: a heat scale. Data keeps the internal names (Lean / Value / Strong). */
 const TIER = { Lean: { name: "Warm", icon: "🔥" }, Value: { name: "Hot", icon: "🔥🔥" }, Strong: { name: "Fire", icon: "🔥🔥🔥" } };
 const tierName = (t) => TIER[t]?.name || t;
@@ -430,7 +430,7 @@ async function connect() {
 const games = () => (state.slate?.games || []);
 const simCache = new Map();
 function sim(g) {
-  const p = g.pred; if (!p) return null;
+  const p = g.pred; if (!p || g.kind === "match" || !SP[g.sport]) return null;
   const k = g.id + "|" + p.margin + "|" + p.total + "|" + g.spread + "|" + g.total;
   if (!simCache.has(k)) simCache.set(k, E.simulate(g, { ...p }, 10000));
   return simCache.get(k);
@@ -443,6 +443,7 @@ function currentPicks() {
 }
 const pickedTeam = (g, p) => p.side === "home" ? "home" : p.side === "away" ? "away" : null;
 function topReason(g) {
+  if (g.kind === "match") return (g.why || [])[0] || "";
   const w = g.why || [], sit = w.find((x) => /more days of rest|wind|back-to-back/i.test(x)); if (sit) return sit;
   const p = g.pred, pk = g.pick; if (!p || !pk) return "";
   const side = (m) => Math.abs(m) < 0.25 ? "even" : `${m > 0 ? g.home.abbr : g.away.abbr} by ${Math.abs(m).toFixed(1)}`;
@@ -554,7 +555,7 @@ function gameRow(g) {
 }
 function sportChips(list, key = "sport") {
   const counts = {}; for (const x of list) counts[x] = (counts[x] || 0) + 1;
-  const sports = Object.keys(SP).filter((s) => counts[s]);
+  const sports = [...Object.keys(SP), "TENNIS", "UFC", "ESPORTS"].filter((s) => counts[s]);
   return `<div class="chips" role="group" aria-label="Sport">${["ALL", ...sports, ...(key === "sport" ? ["SAVED"] : [])].map((s) =>
     `<button class="chip" data-${key}="${s}" aria-pressed="${state.sport === s}">${s !== "ALL" && s !== "SAVED" ? `<i style="width:7px;height:7px;border-radius:50%;background:${SPORT_DOT[s]}"></i>` : ""}${s === "ALL" ? "All" : s === "SAVED" ? "★ Saved" : sportLabel(s)}${s !== "ALL" && s !== "SAVED" ? `<b>${counts[s]}</b>` : ""}</button>`).join("")}</div>`;
 }
@@ -986,6 +987,7 @@ function openGame(id) {
     ${pk ? `<div class="callout">${tierPill(pk.tier)} <b>${esc(pk.label)}</b> <span class="num">${am(pk.price)}</span>
       <p style="margin:8px 0 0;font-size:15px;line-height:1.45;color:var(--fg)">EdgeBot thinks this hits <b class="good">${pct(pk.p)}</b> of the time. At ${am(pk.price)} odds you only need <b>${pct(pk.pMkt)}</b> to break even — that gap is the edge.</p>
       <p style="margin:6px 0 0;font-size:13.5px;color:var(--muted)">Suggested bet: <b style="color:var(--fg)">${(pk.stake ?? 0.25)} unit${(pk.stake ?? 0.25) === 1 ? "" : "s"}</b> (1 unit = 1% of your bankroll).${pk.note ? ` ${esc(pk.note)}` : ""}</p></div>` : ""}
+    ${g.kind === "match" ? `<p class="note" style="text-align:center">${esc(g.title || "")}</p>` : ""}
     ${p && !fin ? `<div class="probbar">${winBar(g, s ? s.away : p.pAway, s ? s.home : p.pHome, s ? s.draw : p.pDraw)}<div class="lbl"><span><i style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${ca};margin-right:6px"></i>${esc(g.away.abbr)} ${pct1(s ? s.away : p.pAway)}</span>${(s ? s.draw : p.pDraw) > 0.01 ? `<span>Draw ${pct1(s ? s.draw : p.pDraw)}</span>` : ""}<span>${pct1(s ? s.home : p.pHome)} ${esc(g.home.abbr)}<i style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${ch};margin-left:6px"></i></span></div></div>
       <div class="tiles">
         ${g.spread != null && s ? `<div class="tile"><span>${esc(g.home.abbr)} ${g.spread > 0 ? "+" : ""}${g.spread} covers</span><b>${pct1(s.cover / (1 - s.push))}</b><small>${s.push > 0.005 ? `push ${pct1(s.push)}` : "spread"}</small></div>` : ""}
@@ -993,7 +995,7 @@ function openGame(id) {
         ${s ? `<div class="tile"><span>Likely margin</span><b>${s.range[0] > 0 ? "+" : ""}${s.range[0]} to ${s.range[2] > 0 ? "+" : ""}${s.range[2]}</b><small>80% of sims, home view</small></div>` : ""}
         ${s ? `<div class="tile"><span>Top score</span><b>${esc(s.top[0].s.split("-").reverse().join("–"))}</b><small>${pct1(s.top[0].p)} of sims</small></div>` : ""}
       </div>
-      ${marginChart(g, p)}` : fin ? "" : `<p class="note">No line or ratings yet, so EdgeBot isn’t projecting this one.</p>`}
+      ${g.kind === "match" ? "" : marginChart(g, p)}` : fin ? "" : `<p class="note">No line or ratings yet, so EdgeBot isn’t projecting this one.</p>`}
     ${contextChips(g).length ? `<div class="ctx">${contextChips(g).map((x) => `<span>${esc(x)}</span>`).join("")}</div>` : ""}
     <div class="actions">${g.pick ? `<button class="btn ${state.saved.includes(`${g.id}~${g.pick.market}~${g.pick.side}`) ? "" : "primary"}" data-save="${esc(`${g.id}~${g.pick.market}~${g.pick.side}`)}" data-keep="1">${state.saved.includes(`${g.id}~${g.pick.market}~${g.pick.side}`) ? "★ Saved" : "☆ Save pick"}</button>` : ""}<button class="btn" data-share="${esc(g.id)}">↗ Share</button></div>
     ${crowdBlock(g)}
@@ -1002,7 +1004,7 @@ function openGame(id) {
     ${(g.why || []).filter((x) => /^Blend:/.test(x)).map((x) => `<p class="note" style="color:var(--dim)">${esc(x)}</p>`).join("")}
     ${(() => { const L = (state.players?.props || []).filter((x) => x.gameId === g.id), seen = new Set(), ps = L.filter((x) => !seen.has(x.pid) && seen.add(x.pid)).slice(0, 16); return ps.length ? `<h2 class="sec"><span>Players</span><small>tap for lines & stats</small></h2><div class="card" style="padding:0 12px">${ps.map((x) => { const best = L.filter((y) => y.pid === x.pid && y.tier).sort((a, b) => b.p - a.p)[0]; return `<button class="hit" data-player="${x.sport}|${esc(x.pid)}"><img src="${esc(x.head)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'"><span style="min-width:0"><b>${esc(x.name)}</b><small>${esc(x.team)} · ${esc(x.pos)}</small></span><span class="r">${best ? `${best.side === "higher" ? "▲" : "▼"} ${best.line} ${esc(best.label)}` : `${L.filter((y) => y.pid === x.pid).length} lines`}</span></button>`; }).join("")}</div>` : ""; })()}
     ${injuryBlock(g)}
-    ${p && !fin ? `<h2 class="sec"><span>Check your own line</span></h2>
+    ${p && !fin && g.kind !== "match" ? `<h2 class="sec"><span>Check your own line</span></h2>
       <div class="check"><label for="ck-spread">${esc(g.home.abbr)} spread<input id="ck-spread" inputmode="decimal" value="${g.spread ?? ""}" placeholder="-3.5"></label>
       <label for="ck-total">Total<input id="ck-total" inputmode="decimal" value="${g.total ?? ""}" placeholder="220.5"></label>
       <label for="ck-price">Odds<input id="ck-price" inputmode="numeric" value="-110"></label></div>
