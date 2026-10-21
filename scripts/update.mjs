@@ -219,6 +219,13 @@ async function main() {
   // v2.3 fix: puck/run-line picks saved before real prices were read assumed -110 — void them (never counted)
   for (const r of ledger) if (r.status === "open" && (r.sport === "NHL" || r.sport === "MLB") && r.market === "spread" && r.price === -110 && !/^edgebot-v2\.[3-9]/.test(r.model || ""))
     Object.assign(r, { status: "void", note: "Voided: saved before EdgeBot read real puck-line prices (assumed -110)." });
+  // one tracked pick per game: keep the first saved, void later duplicates (never counted)
+  const firstForGame = new Map();
+  for (const r of [...ledger].sort((x, y) => (x.savedAt || "").localeCompare(y.savedAt || ""))) {
+    if (r.status === "void") continue;
+    if (!firstForGame.has(r.gameId)) firstForGame.set(r.gameId, r.id);
+    else if (r.status === "open") Object.assign(r, { status: "void", note: "Voided: a pick on this game was already saved earlier." });
+  }
   // picks whose game vanished or never finished: void after 4 days (never counted)
   for (const r of ledger) if (r.status === "open" && Date.parse(r.start) < NOW - 4 * 864e5) Object.assign(r, { status: "void", note: "No verified final found." });
   ledger.push(...out.newPicks);
