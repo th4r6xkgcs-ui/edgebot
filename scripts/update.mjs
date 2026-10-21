@@ -465,7 +465,60 @@ async function playersCycle({ games, archive, ratings, injuryBooks, nflMeta }) {
   const G = ledger.filter((r) => r.status === "graded"), W = G.filter((r) => r.result === "W").length, Lx = G.filter((r) => r.result === "L").length;
   log.push(`${props.length} player lines projected, ${ledger.filter((r) => r.status === "open").length} open player picks, ${graded} graded this run (${Date.now() - t0} ms).`);
   console.log(log.join("\n"));
+  writeProfiles({ hist, props, ledger, games, archive, ratings, injuryBooks });
   return { at: now.toISOString(), props: props.sort((a, b) => b.p - a.p).slice(0, 700), ledger: ledger.slice(-500), record: { w: W, l: Lx, p: G.length - W - Lx }, log };
+}
+
+/* ------------------------------ profiles (search, player & team pages; loaded on demand) ------------------------------ */
+const PSTATS = { NBA: ["min", "pts", "reb", "ast", "tpm", "stl", "blk"], NFL: ["passYds", "passTd", "int", "rushYds", "rushAtt", "rec", "recYds"] };
+function writeProfiles({ hist, props, ledger, games, archive, ratings, injuryBooks }) {
+  const teamsDir = readJson("state/teams.json", {}), propIds = new Set(props.map((x) => `${x.sport}|${x.pid}`));
+  const r1 = (v) => Math.round(v * 10) / 10;
+  const avg = (rows, keys) => rows.length ? Object.fromEntries(keys.map((k) => [k, r1(rows.reduce((s, r) => s + (r[k] || 0), 0) / rows.length)])) : null;
+  const players = [];
+  for (const sp of ["NBA", "NFL"]) for (const [pid, H] of hist[sp]) {
+    const cur = H.filter((r) => r.cur), prev = H.filter((r) => !r.cur), last = H[H.length - 1];
+    if (!cur.length && !propIds.has(`${sp}|${pid}`) && (sp === "NFL" || prev.length < 20)) continue;
+    const keys = PSTATS[sp], rel = sp === "NFL" ? keys.filter((k) => H.some((r) => r[k])) : keys;
+    if (sp === "NFL" && !rel.some((k) => ["passYds", "rushYds", "recYds"].includes(k))) continue;
+    players.push({ id: pid, sport: sp, name: last.n, team: last.t, pos: last.pos || "",
+      head: sp === "NBA" ? `https://a.espncdn.com/i/headshots/nba/players/full/${pid}.png` : last.head || null,
+      cur: cur.length ? { gp: cur.length, avg: avg(cur, rel) } : null, prev: prev.length ? { gp: prev.length, avg: avg(prev, rel) } : null,
+      log: H.slice(-10).reverse().map((r) => ({ d: r.d, opp: r.o, ...Object.fromEntries(rel.map((k) => [k, r[k] ?? 0])) })), keys: rel });
+  }
+  // teams: record, results, scoring, power, leaders, injuries, upcoming
+  const teams = [];
+  for (const [sp, A] of Object.entries(archive)) {
+    if (!A.length) continue;
+    const R = ratings[sp], order = R ? Object.entries(R.teams).filter(([, t]) => t.n >= 3).sort((a, b) => b[1].r - a[1].r).map(([k]) => k) : [];
+    const by = new Map();
+    for (const x of [...A].sort((a, b) => (a.d < b.d ? -1 : 1))) for (const [us, them, sUs, sThem, home] of [[x.h, x.a, x.hs, x.as, true], [x.a, x.h, x.as, x.hs, false]]) {
+      const L = by.get(us) || []; L.push({ d: x.d, opp: them, home, us: sUs, them: sThem, cur: x.d >= SEASON_START[sp] }); by.set(us, L);
+    }
+    const inj = injuryBooks[sp] || {};
+    for (const [abbr, L] of by) {
+      const dir = teamsDir[`${sp}|${abbr}`]; const cur = L.filter((x) => x.cur);
+      if (!dir && !cur.length) continue;
+      const res = (x) => x.us > x.them ? "W" : x.us < x.them ? "L" : "T";
+      const w = cur.filter((x) => res(x) === "W").length, l = cur.filter((x) => res(x) === "L").length, t = cur.length - w - l;
+      let streak = ""; for (let i = L.length - 1; i >= 0; i--) { const r = res(L[i]); if (!streak) streak = r; else if (streak[0] !== r) break; else streak += r; }
+      const T = R?.teams[abbr];
+      let leaders = [];
+      if (sp === "NBA" || sp === "NFL") {
+        const roster = players.filter((p) => p.sport === sp && p.team === abbr);
+        if (sp === "NBA") leaders = roster.map((p) => ({ id: p.id, name: p.name, v: (p.cur || p.prev)?.avg?.pts ?? 0, k: "ppg" })).sort((a, b) => b.v - a.v).slice(0, 5);
+        else for (const [k, lab] of [["passYds", "pass yds/g"], ["rushYds", "rush yds/g"], ["recYds", "rec yds/g"]]) { const b = roster.map((p) => ({ id: p.id, name: p.name, v: (p.cur || p.prev)?.avg?.[k] ?? 0, k: lab })).sort((a, b) => b.v - a.v)[0]; if (b && b.v > 0) leaders.push(b); }
+      }
+      const upcoming = [...games.values()].filter((g) => g.sport === sp && g.status !== "post" && (g.home.abbr === abbr || g.away.abbr === abbr)).sort((a, b) => (a.start < b.start ? -1 : 1)).slice(0, 3).map((g) => g.id);
+      const name = dir?.name || abbr;
+      teams.push({ sport: sp, abbr, name, short: dir?.short || name, logo: dir?.logo || null, color: dir?.color || null, alt: dir?.alt || null, record: dir?.record || `${w}-${l}${t ? "-" + t : ""}`,
+        w, l, t, streak: streak ? `${streak[0]}${streak.length}` : "", pf: cur.length ? r1(cur.reduce((s, x) => s + x.us, 0) / cur.length) : null, pa: cur.length ? r1(cur.reduce((s, x) => s + x.them, 0) / cur.length) : null,
+        rating: T ? r1(T.r) : null, rank: order.indexOf(abbr) >= 0 ? order.indexOf(abbr) + 1 : null, of: order.length,
+        last: L.slice(-10).reverse().map((x) => ({ d: x.d, opp: x.opp, home: x.home, us: x.us, them: x.them, r: res(x) })), leaders, upcoming, injuries: inj[name] || [] });
+    }
+  }
+  writeJson("profiles.json", { at: now.toISOString(), players, teams });
+  console.log(`profiles: ${players.length} players, ${teams.length} teams`);
 }
 
 if (process.argv[1] && import.meta.url.endsWith(path.basename(process.argv[1]))) main();
