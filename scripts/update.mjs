@@ -370,6 +370,7 @@ async function main() {
     if (g.espnPredictor && side) r.espnP = g.espnPredictor[side]; }
   ledger.push(...out.newPicks);
   // tennis, UFC, esports (crowd markets + Elo); their picks share the ledger and are graded from verified winners
+  for (let i = ledger.length - 1; i >= 0; i--) if (ledger[i].model === "edgebot-match-1" && ledger[i].status === "open") ledger.splice(i, 1); // first-run matchup picks used loose rules
   const mc = await matchCycle({ getJson, nowISO: now.toISOString(), ledger });
   out.slate.push(...mc.slate); ledger.push(...mc.newPicks); out.log.push(...mc.log);
   for (const r of mc.graded) { const k = `${r.sport}|moneyline`, L = (out.model.lanes[k] ||= { n: 0, w: 0, l: 0, p: 0, sumP: 0, sumY: 0, brier: 0, base: 0, units: 0 }), y = r.result === "W" ? 1 : 0;

@@ -9,7 +9,7 @@ const GROUPS = {
   ESPORTS: { codes: ["cs2", "csgo", "lol", "val", "valorant", "dota2", "dota", "r6", "rl"], k: 32, label: "Esports" },
 };
 export const MATCH_LABEL = Object.fromEntries(Object.entries(GROUPS).map(([k, v]) => [k, v.label]));
-const W_ELO = 0.3; // starting weight on Elo vs the crowd's price (unvalidated → small; tracked like everything else)
+const W_ELO = 0.25; // starting weight on Elo vs the crowd's price (unvalidated → small; tracked like everything else)
 const parse = (x) => { try { return JSON.parse(x); } catch { return null; } };
 const key = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]/g, "");
 const toAm = (p) => p <= 0 || p >= 1 ? null : p >= 0.5 ? -Math.round(100 * p / (1 - p)) : Math.round(100 * (1 - p) / p);
@@ -34,6 +34,8 @@ const elo = (ra, rb) => 1 / (1 + Math.pow(10, (rb - ra) / 400));
 export async function matchCycle({ getJson, nowISO, ledger }) {
   const NOW = Date.parse(nowISO), list = (await getJson("https://gamma-api.polymarket.com/sports")) || [], slate = [], newPicks = [], log = [], graded = [];
   const have = new Set(ledger.map((r) => r.id));
+  // a sport's matchup picks can be Hot only after 30+ graded picks that made money; until then Warm at most
+  const proven = (sport) => { const G = ledger.filter((r) => r.sport === sport && r.status === "graded"); return G.length >= 30 && G.reduce((a, r) => a + (r.units || 0), 0) > 0; };
   for (const [sport, G] of Object.entries(GROUPS)) {
     const series = list.filter((x) => G.codes.includes(String(x.sport).toLowerCase()));
     let nRes = 0, nUp = 0;
@@ -59,13 +61,14 @@ export async function matchCycle({ getJson, nowISO, ledger }) {
         const m = moneyline(e), start = e.startTime || e.endDate; if (!m || !start || Date.parse(start) < NOW - 3 * 3600e3 || Date.parse(start) > NOW + 7 * 864e5) continue;
         if (m.px.some((p) => p <= 0.01 || p >= 0.99)) continue; // settled or no market
         const [aN, hN] = m.outs, A = get(aN), H = get(hN), s2 = m.px[0] + m.px[1], mkA = m.px[0] / s2;
-        const enough = A.n >= 5 && H.n >= 5, eA = elo(A.r, H.r), w = enough ? W_ELO : 0, pA = (1 - w) * mkA + w * eA;
+        const vol = +e.volume || 0, enough = A.n >= 15 && H.n >= 15 && vol >= 2000, eA = elo(A.r, H.r), wild = Math.abs(eA - mkA) > 0.22;
+        const w = enough && !wild ? W_ELO : 0, pA = (1 - w) * mkA + w * eA;
         const g = { id: `PM:${e.id}`, sport, kind: "match", league: pool, title: e.title, start: new Date(start).toISOString(), status: Date.parse(start) <= NOW ? "in" : "pre",
           away: { abbr: short(aN).slice(0, 14), name: aN, short: short(aN), record: A.n ? `${Math.round(A.r)} Elo` : null }, home: { abbr: short(hN).slice(0, 14), name: hN, short: short(hN), record: H.n ? `${Math.round(H.r)} Elo` : null },
           spread: null, total: null, mlAway: toAm(m.px[0]), mlHome: toAm(m.px[1]), mlDraw: null,
           crowd: { pm: { away: m.px[0], home: m.px[1], vol: Math.round(+e.volume || 0), vol24: Math.round(+e.volume24hr || 0), mlVol: Math.round(m.vol), slug: e.slug }, pHome: 1 - mkA, pDraw: 0, money: Math.round(+e.volume || 0), money24: Math.round(+e.volume24hr || 0) },
           pred: { pHome: 1 - pA, pAway: pA, pDraw: 0, eloAway: Math.round(A.r), eloHome: Math.round(H.r), nA: A.n, nH: H.n, wr: w },
-          why: [enough ? `Elo ratings from ${A.n}+${H.n} verified ${G.label.toLowerCase()} results: ${short(aN)} ${Math.round(A.r)} vs ${short(hN)} ${Math.round(H.r)} → ${Math.round(eA * 100)}% for ${short(aN)}.` : `Not enough verified results yet for both sides (${A.n} and ${H.n}; 5+ needed), so EdgeBot follows the crowd’s price.`,
+          why: [wild && enough ? `Elo (${short(aN)} ${Math.round(eA * 100)}%) and the crowd (${Math.round(mkA * 100)}%) disagree too much to trust — EdgeBot follows the crowd here.` : enough ? `Elo ratings from ${A.n}+${H.n} verified ${G.label.toLowerCase()} results: ${short(aN)} ${Math.round(A.r)} vs ${short(hN)} ${Math.round(H.r)} → ${Math.round(eA * 100)}% for ${short(aN)}.` : `Not enough to go on yet (${A.n} and ${H.n} verified results, 15+ needed; $${Math.round(vol).toLocaleString()} traded, $2,000+ needed), so EdgeBot follows the crowd’s price.`,
             `Crowd price (Polymarket, $${Math.round(+e.volume || 0).toLocaleString()} traded): ${short(aN)} ${Math.round(mkA * 100)}%.`] };
         // pick: real edge vs the price on either side
         let pick = null;
@@ -73,7 +76,7 @@ export async function matchCycle({ getJson, nowISO, ledger }) {
           const edge = p - px / s2, ev = p / px - 1;
           if (enough && edge >= 0.025 && ev > 0 && (!pick || ev > pick.ev)) {
             const kelly = ev / (1 / px - 1), stake = Math.max(0.25, Math.min(2, Math.round(kelly * 100 / 4 * 4) / 4));
-            pick = { market: "moneyline", side, label: `${short(side === "away" ? aN : hN)} to win`, line: null, price: toAm(px), p, pRaw: p, pMkt: px / s2, edge, ev, fair: toAm(p), lane: "BUILDING", tier: edge >= 0.045 ? "Value" : "Lean", stake };
+            pick = { market: "moneyline", side, label: `${short(side === "away" ? aN : hN)} to win`, line: null, price: toAm(px), p, pRaw: p, pMkt: px / s2, edge, ev, fair: toAm(p), lane: "BUILDING", tier: edge >= 0.045 && proven(sport) ? "Value" : "Lean", stake: Math.min(stake, proven(sport) ? 2 : 0.5) };
           }
         }
         if (pick) { g.pick = pick; g.why.push(`${pick.label}: ${Math.round(pick.p * 100)}% vs ${Math.round(pick.pMkt * 100)}% priced in.`); }
@@ -81,7 +84,7 @@ export async function matchCycle({ getJson, nowISO, ledger }) {
         const id = `${g.id}~moneyline~${pick?.side}`;
         if (pick && g.status === "pre" && !have.has(id) && !ledger.some((r) => r.gameId === g.id)) {
           newPicks.push({ id, gameId: g.id, sport, start: g.start, matchup: `${aN} vs ${hN}`, home: g.home.abbr, away: g.away.abbr, market: "moneyline", side: pick.side, label: pick.label, line: null,
-            price: pick.price, p: pick.p, pRaw: pick.p, pMkt: pick.pMkt, edge: pick.edge, ev: pick.ev, tier: pick.tier, stake: pick.stake, savedAt: nowISO, model: "edgebot-match-1", status: "open", crowdP: pick.pMkt });
+            price: pick.price, p: pick.p, pRaw: pick.p, pMkt: pick.pMkt, edge: pick.edge, ev: pick.ev, tier: pick.tier, stake: pick.stake, savedAt: nowISO, model: "edgebot-match-2", status: "open", crowdP: pick.pMkt });
           have.add(id);
         }
       }
