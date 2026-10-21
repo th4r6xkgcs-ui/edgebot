@@ -322,8 +322,14 @@ async function main() {
   const soon = upcoming.filter((g) => g.status === "pre" && Date.parse(g.start) < NOW + 36 * 3600e3);
   for (let i = 0; i < soon.length; i += 6) await Promise.all(soon.slice(i, i + 6).map(espnExtras));
   // rebuild ratings from the archive (last season regressed 30% toward average, then this season)
+  // self-tuning, once a day: pick the settings that predicted this archive's finals best (walk-forward)
+  const prevModel = readJson("state/model.json", {}), tuned = prevModel.tuned || {};
+  for (const sp of Object.keys(E.SPORTS)) {
+    if (archive[sp].length < 250 || (tuned[sp] && NOW - Date.parse(tuned[sp].tunedAt) < 20 * 3600e3 && tuned[sp].games)) continue;
+    const t = E.tune(sp, archive[sp], now.toISOString()); if (t) tuned[sp] = t;
+  }
   const ratings = {};
-  for (const sp of Object.keys(E.SPORTS)) if (archive[sp].length) ratings[sp] = E.buildRatings(sp, archive[sp], SEASON_START[sp], now.toISOString());
+  for (const sp of Object.keys(E.SPORTS)) if (archive[sp].length) ratings[sp] = E.buildRatings(sp, archive[sp], SEASON_START[sp], now.toISOString(), tuned[sp]?.params);
   const model = readJson("state/model.json", {}), ledger = readJson("ledger.json", []);
   model.clvLanes = {};
   for (const r of ledger) if (r.clv && r.status !== "void") { const k = `${r.sport}|${r.market}`, c = (model.clvLanes[k] ||= { n: 0, beat: 0 }); c.n++; if ((r.clv.pts ?? 0) > 0 || (r.clv.prob ?? 0) > 0.002) c.beat++; }
@@ -372,6 +378,7 @@ async function main() {
   for (const [sp, A] of Object.entries(archive)) if (A.length) writeJson(`state/archive/${sp}.json`, A.filter((x) => Date.parse(x.d) > NOW - 800 * 864e5));
   writeJson("state/history.json", history); writeJson("debug/odds-samples.json", oddsSamples);
   writeJson("state/model.json", out.model); writeJson("state/fetched.json", fetched); writeJson("ledger.json", ledger); writeJson("runs.json", runs);
+  out.model.tuned = tuned;
   out.model.power = Object.fromEntries(Object.entries(ratings).map(([sp, R]) => [sp, Object.entries(R.teams).filter(([, t]) => t.n >= 3)
     .map(([abbr, t]) => ({ abbr, r: +t.r.toFixed(2), o: +t.o.toFixed(2), d: +t.d.toFixed(2), n: t.n })).sort((a, b) => b.r - a.r).slice(0, sp === "NCAAF" ? 60 : 40)]));
   const teamsOut = {}; for (const sp of Object.keys(out.model.power)) for (const t of out.model.power[sp]) if (teams[`${sp}|${t.abbr}`]) teamsOut[`${sp}|${t.abbr}`] = teams[`${sp}|${t.abbr}`];

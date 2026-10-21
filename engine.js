@@ -12,7 +12,7 @@
     MLB:   { label: "MLB", path: "baseball/mlb", spreadNeedsPrice: true, sdM: 4.3, sdT: 4.4, hfa: 0.2, k: 0.04, kt: 0.03, avgT: 8.8, dist: "negbin", draw: false, ot: true },
     EPL:   { label: "Premier League", path: "soccer/eng.1", sdM: 1.7, sdT: 1.6, hfa: 0.3, k: 0.06, kt: 0.03, avgT: 2.9, dist: "poisson", draw: true, ot: false },
   };
-  const MODEL_VERSION = "edgebot-v2.4";
+  const MODEL_VERSION = "edgebot-v2.5";
   const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
   function erf(x) { const s = Math.sign(x); x = Math.abs(x); const t = 1 / (1 + 0.3275911 * x);
     const y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x); return s * y; }
@@ -23,7 +23,9 @@
   const toAm = (p) => p <= 0 || p >= 1 ? null : p >= 0.5 ? -Math.round(100 * p / (1 - p)) : Math.round(100 * (1 - p) / p);
 
   /* -------- ratings -------- */
-  function emptyRatings(sport) { return { sport, teams: {}, lg: { avgT: SPORTS[sport].avgT, n: 0 }, seen: [], blend: { seM: 0, seR: 0, n: 0 } }; }
+  function emptyRatings(sport, params) { return { sport, params: params || null, teams: {}, lg: { avgT: SPORTS[sport].avgT, n: 0 }, seen: [], blend: { seM: 0, seR: 0, n: 0 }, blendT: { n: 0, sXY: 0, sXX: 0 } }; }
+  /** Sport settings with any self-tuned values (k, kt, hfa, regress) layered on top. */
+  const P = (R, sport) => ({ ...SPORTS[sport], ...((R && R.params) || {}) });
   const team = (R, abbr) => R.teams[abbr] || { r: 0, o: 0, d: 0, n: 0 };
   /** Weight on EdgeBot's own ratings (vs market), learned from squared errors on recent finals. */
   /** Starting trust in EdgeBot's own ratings before enough finals have been scored against the closing line. */
@@ -44,6 +46,13 @@
     if (p > 1 - pl) return -invNorm(1 - p);
     const q = p - 0.5, r = q * q; return (((((a[0] * r + a[1]) * r + a[2]) * r + a[3]) * r + a[4]) * r + a[5]) * q / (((((b[0] * r + b[1]) * r + b[2]) * r + b[3]) * r + b[4]) * r + 1);
   }
+  /** Same least-squares weight, learned separately for totals. */
+  function ratingWeightT(R) {
+    const b = R.blendT || { n: 0 }; if (!b.n || b.n < 30) return PRIOR_WEIGHT;
+    return clamp(b.sXY / (b.sXX + 60 * (b.sXX / b.n)), 0, 0.55);
+  }
+  /** Expected total from offence/defence: each side scores league-half + its offence + the opponent's defence (points allowed). */
+  const expTotal = (R, h, a) => R.lg.avgT + h.o + a.d + a.o + h.d;
   /** Market expected home margin: from the spread (negative = home favored), else implied by the moneyline. */
   function marketMargin(g) {
     if (g.spread != null) return -g.spread;
@@ -77,26 +86,34 @@
     return out;
   }
   function predict(g, R) {
-    const S = SPORTS[g.sport], h = team(R, g.home.abbr), a = team(R, g.away.abbr);
-    const ratingM = h.r - a.r + (g.neutral ? 0 : S.hfa) + restRating(g), ratingT = R.lg.avgT + h.o + a.d + a.o + h.d;
+    const S = P(R, g.sport), h = team(R, g.home.abbr), a = team(R, g.away.abbr);
+    const ratingM = h.r - a.r + (g.neutral ? 0 : S.hfa) + restRating(g), ratingT = expTotal(R, h, a);
     const evidence = Math.min(h.n, a.n), wr0 = ratingWeight(R), wr = evidence < 4 ? 0 : evidence < 7 ? wr0 * (evidence - 3) / 4 : wr0;
     const mM = marketMargin(g), mT = g.total;
     const sit = situational(g);
     let margin = mM == null ? (evidence >= 4 ? ratingM : null) : (1 - wr) * mM + wr * ratingM;
-    let total = mT == null ? (evidence >= 4 ? ratingT : null) : (1 - wr) * mT + wr * ratingT;
+    const wt0 = ratingWeightT(R), wt = evidence < 4 ? 0 : evidence < 7 ? wt0 * (evidence - 3) / 4 : wt0;
+    let total = mT == null ? (evidence >= 4 ? ratingT : null) : (1 - wt) * mT + wt * ratingT;
     if (margin == null) return null;
     margin += sit.margin; if (total != null) total += sit.total;
     const pHome = S.draw ? 1 - ncdf((0.5 - margin) / S.sdM) : 1 - ncdf(-margin / S.sdM);
     const pDraw = S.draw ? ncdf((0.5 - margin) / S.sdM) - ncdf((-0.5 - margin) / S.sdM) : 0;
-    return { margin, total: total ?? R.lg.avgT, pHome, pAway: 1 - pHome - pDraw, pDraw, wr, ratingM, ratingT, marketM: mM, marketT: mT, evidence,
+    return { margin, total: total ?? R.lg.avgT, pHome, pAway: 1 - pHome - pDraw, pDraw, wr, wt, ratingM, ratingT, marketM: mM, marketT: mT, evidence,
       homeRating: h, awayRating: a, blendN: (R.blend || {}).n || 0, notes: sit.notes, restAdj: restRating(g), version: MODEL_VERSION };
   }
   /** Learn from one verified final. Idempotent via R.seen. */
   function learn(R, g) {
     if (g.status !== "post" || g.home.score == null || g.away.score == null || R.seen.includes(g.id)) return false;
-    const S = SPORTS[g.sport], pred = predict(g, R), act = g.home.score - g.away.score, actT = g.home.score + g.away.score;
+    const S = P(R, g.sport), pred = predict(g, R), act = g.home.score - g.away.score, actT = g.home.score + g.away.score;
     const h = { ...team(R, g.home.abbr) }, a = { ...team(R, g.away.abbr) };
-    const expM = h.r - a.r + S.hfa, expT = R.lg.avgT + h.o + a.d + a.o + h.d, err = clamp(act - expM, -3 * S.sdM, 3 * S.sdM), errT = clamp(actT - expT, -3 * S.sdT, 3 * S.sdT);
+    const hfa = g.neutral ? 0 : S.hfa, expM = h.r - a.r + hfa, expT = expTotal(R, h, a), err = clamp(act - expM, -3 * S.sdM, 3 * S.sdM);
+    // each side's points vs expectation, for offence (scoring) and defence (allowing)
+    const expH = (expT + expM) / 2, expA = (expT - expM) / 2, eH = clamp(g.home.score - expH, -2 * S.sdT, 2 * S.sdT), eA = clamp(g.away.score - expA, -2 * S.sdT, 2 * S.sdT);
+    if (pred && pred.marketT != null && h.n >= 4 && a.n >= 4) {
+      const B = (R.blendT ||= { n: 0, sXY: 0, sXX: 0 }), x = expT - pred.marketT, y = actT - pred.marketT;
+      B.sXY += x * y; B.sXX += x * x; B.n++;
+      if (B.n > 600) { const f = 600 / B.n; B.sXY *= f; B.sXX *= f; B.n = 600; }
+    }
     if (pred && pred.marketM != null && h.n >= 4 && a.n >= 4) {
       const B = R.blend, x = expM - pred.marketM, y = act - pred.marketM;
       B.sXY = (B.sXY || 0) + x * y; B.sXX = (B.sXX || 0) + x * x; B.seM += y * y; B.seR += (act - expM) ** 2; B.n++;
@@ -104,7 +121,8 @@
     }
     const k = S.k * (h.n < 5 || a.n < 5 ? 2 : 1);
     h.r += k * err; a.r -= k * err;
-    h.o += S.kt * errT / 4; a.o += S.kt * errT / 4; h.d += S.kt * errT / 4; a.d += S.kt * errT / 4;
+    const kt = S.kt * (h.n < 5 || a.n < 5 ? 1.5 : 1);
+    h.o += kt * eH; a.d += kt * eH; a.o += kt * eA; h.d += kt * eA;
     h.n++; a.n++; R.teams[g.home.abbr] = h; R.teams[g.away.abbr] = a;
     R.lg.avgT += 0.01 * (actT - R.lg.avgT); R.lg.n++;
     R.seen.push(g.id); if (R.seen.length > 1500) R.seen = R.seen.slice(-1200);
@@ -113,15 +131,15 @@
   /** Market prior: when a team has no results yet, start its rating from the line (keeps early picks honest). */
   function seedFromMarket(R, g) {
     const mM = marketMargin(g); if (mM == null) return;
-    const S = SPORTS[g.sport], h = team(R, g.home.abbr), a = team(R, g.away.abbr);
+    const S = P(R, g.sport), h = team(R, g.home.abbr), a = team(R, g.away.abbr);
     if (h.n === 0 && !R.teams[g.home.abbr]) R.teams[g.home.abbr] = { ...h, r: a.r + (mM - S.hfa) / (R.teams[g.away.abbr] ? 1 : 2) };
     if (a.n === 0 && !R.teams[g.away.abbr]) R.teams[g.away.abbr] = { ...a, r: team(R, g.home.abbr).r - (mM - S.hfa) };
   }
 
   /** Rebuild a sport's ratings from its archive of verified finals, in date order. Last season's ratings carry
    *  into the new season regressed toward average, counting as 4 games of evidence. */
-  function buildRatings(sport, archive, currentStart, nowISO, regress = 0.7) {
-    const R = emptyRatings(sport), rows = [...archive].sort((a, b) => (a.d < b.d ? -1 : a.d > b.d ? 1 : 0));
+  function buildRatings(sport, archive, currentStart, nowISO, params) {
+    const R = emptyRatings(sport, params), regress = (params && params.regress) ?? 0.7, rows = [...archive].sort((a, b) => (a.d < b.d ? -1 : a.d > b.d ? 1 : 0));
     let last = null;
     const cross = () => { for (const t of Object.values(R.teams)) { t.r *= regress; t.o *= regress; t.d *= regress; t.n = Math.min(t.n, 4); } };
     for (const x of rows) {
@@ -132,6 +150,39 @@
     if (last && Date.parse(nowISO) - Date.parse(last) > 45 * 864e5) cross();
     R.seen = rows.map((x) => x.id);
     return R;
+  }
+
+  /** Self-tuning: replay the archive in date order for each candidate setting and keep the one that predicted
+   *  final margins best (each game is predicted BEFORE its result is learned — walk-forward, out of sample).
+   *  Scored only after the first 25% of games and when both teams have 4+ games. Totals tune kt separately. */
+  function tune(sport, archive, nowISO) {
+    const S = SPORTS[sport], rows = [...archive].sort((a, b) => (a.d < b.d ? -1 : 1)), start = rows[Math.floor(rows.length * 0.25)]?.d;
+    if (rows.length < 250) return null;
+    const replay = (params) => {
+      const R = emptyRatings(sport, params); R.seen = { includes: () => false, push() {}, length: 0, slice() { return this; } };
+      const reg = params.regress; let last = null, n = 0, se = 0, seT = 0, nT = 0, seBase = 0;
+      for (const x of rows) {
+        if (last && Date.parse(x.d) - Date.parse(last) > 45 * 864e5) for (const t of Object.values(R.teams)) { t.r *= reg; t.o *= reg; t.d *= reg; t.n = Math.min(t.n, 4); }
+        last = x.d;
+        const h = team(R, x.h), a = team(R, x.a);
+        if (x.d >= start && h.n >= 4 && a.n >= 4) {
+          const hfa = x.n ? 0 : params.hfa, em = h.r - a.r + hfa, act = x.hs - x.as; se += (act - em) ** 2; seBase += (act - hfa) ** 2; n++;
+          const et = expTotal(R, h, a); seT += (x.hs + x.as - et) ** 2; nT++;
+        }
+        learn(R, { id: x.id, sport, start: x.d, status: "post", neutral: !!x.n, home: { abbr: x.h, score: x.hs }, away: { abbr: x.a, score: x.as }, spread: null, total: null });
+      }
+      return { rmse: Math.sqrt(se / Math.max(1, n)), rmseT: Math.sqrt(seT / Math.max(1, nT)), base: Math.sqrt(seBase / Math.max(1, n)), n };
+    };
+    const ks = [0.2, 0.3, 0.5, 0.75, 1, 1.4, 2].map((f) => +(S.k * f).toFixed(4)), hfas = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.8, 2.2].map((f) => +(S.hfa * f).toFixed(3)), regs = [0.35, 0.5, 0.7, 0.85, 1];
+    let best = null;
+    for (const k of ks) for (const hfa of hfas) for (const regress of regs) {
+      const r = replay({ k, kt: S.kt, hfa, regress }); if (!best || r.rmse < best.rmse) best = { ...r, params: { k, kt: S.kt, hfa, regress } };
+    }
+    let bestT = null;
+    for (const f of [0.2, 0.35, 0.5, 0.75, 1, 1.5, 2]) { const kt = +(S.kt * f).toFixed(4), r = replay({ ...best.params, kt }); if (!bestT || r.rmseT < bestT.rmseT) bestT = { ...r, kt }; }
+    const def = replay({ k: S.k, kt: S.kt, hfa: S.hfa, regress: 0.7 });
+    return { params: { ...best.params, kt: bestT.kt }, rmse: +best.rmse.toFixed(3), rmseT: +bestT.rmseT.toFixed(3), defaultRmse: +def.rmse.toFixed(3), defaultRmseT: +def.rmseT.toFixed(3),
+      baseRmse: +best.base.toFixed(3), games: best.n, tunedAt: nowISO };
   }
 
   /* -------- prices & picks -------- */
@@ -305,11 +356,11 @@
     for (const g of games) if (g.status === "post") { const d = g.start.slice(0, 10); if (!model.backfill[g.sport] || d < model.backfill[g.sport]) model.backfill[g.sport] = d; }
     model.runs = (model.runs || 0) + 1; model.lastRun = input.now; model.version = MODEL_VERSION;
     model.lastSummary = { games: games.length, finalsLearned: learned, graded: graded.length, newPicks: newPicks.length, sports: [...new Set(games.map((g) => g.sport))] };
-    model.blend = Object.fromEntries(Object.entries(ratings).map(([s, R]) => [s, { weight: ratingWeight(R), n: R.blend.n, teams: Object.keys(R.teams).length, finals: R.lg.n }]));
+    model.blend = Object.fromEntries(Object.entries(ratings).map(([s, R]) => [s, { weight: ratingWeight(R), n: R.blend.n, weightT: ratingWeightT(R), nT: (R.blendT || {}).n || 0, teams: Object.keys(R.teams).length, finals: R.lg.n }]));
     log.push(`${games.length} games read, ${learned} new finals learned, ${graded.length} picks graded, ${newPicks.length} new picks saved.`);
     return { ratings, touched: [...touched], model, slate, newPicks, graded, log };
   }
 
-  const api = { SPORTS, MODEL_VERSION, predict, learn, buildRatings, situational, simulate, candidates, bestPick, grade, profit, runCycle, emptyRatings, ratingWeight, laneState, toDec, toAm, ncdf, why };
+  const api = { SPORTS, MODEL_VERSION, predict, learn, buildRatings, situational, tune, ratingWeightT, simulate, candidates, bestPick, grade, profit, runCycle, emptyRatings, ratingWeight, laneState, toDec, toAm, ncdf, why };
   if (typeof module !== "undefined" && module.exports) module.exports = api; else root.EdgeEngine = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);
