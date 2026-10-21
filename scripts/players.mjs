@@ -79,7 +79,11 @@ export async function propLines(getJson, sport, path, eventId) {
     const toProb = (a) => a < 0 ? -a / (-a + 100) : 100 / (a + 100);
     const scored = [...byLine.entries()].map(([line, prices]) => ({ line, n: prices.length, dev: prices.length ? Math.max(...prices.map((x) => Math.abs(toProb(x) - 0.524))) : 1 }))
       .filter((x) => x.dev < 0.14).sort((a, b) => a.dev - b.dev || b.n - a.n);
-    if (!scored.length) continue;
+    if (!scored.length) {
+      // not priced yet (early-week NFL): use the line only when there's a single quoted value (no alternate ladder)
+      if (byLine.size === 1) out.push({ pid: e.pid, stat: e.stat, line: [...byLine.keys()][0], alts: 1, balanced: null });
+      continue;
+    }
     out.push({ pid: e.pid, stat: e.stat, line: scored[0].line, alts: byLine.size, balanced: +scored[0].dev.toFixed(3) });
   }
   return { lines: out, unmatched: [...unmatched].slice(0, 40) };
@@ -89,7 +93,8 @@ export async function propLines(getJson, sport, path, eventId) {
 /** Recency-weighted projection for one player and stat. NBA projects per-minute rates × expected minutes. */
 export function project(sport, history, stat, ctx = {}) {
   const rows = history.filter((r) => valueOf(r, stat) != null);
-  if (rows.length < (sport === "NBA" ? 15 : 8)) return null;
+  const curN = rows.filter((r) => r.cur).length;
+  if (sport === "NBA" ? rows.length < 30 && curN < 8 : rows.length < 8) return null;
   const cur = rows.filter((r) => r.cur), w = rows.map((r, i) => { const age = rows.length - 1 - i; return (r.cur ? 1 : 0.35) * Math.pow(0.5, age / (r.cur ? 8 : 12)); });
   const W = w.reduce((a, b) => a + b, 0);
   let mean, sd;
@@ -100,12 +105,12 @@ export function project(sport, history, stat, ctx = {}) {
     mean = rate * expMin * (ctx.oppFactor && ["pts", "pa", "pr", "pra"].includes(stat) ? ctx.oppFactor : 1);
     const resid = rows.map((r, i) => [w[i], valueOf(r, stat) - rate * r.min]);
     const scaled = Math.sqrt(resid.reduce((s, [ww, e]) => s + ww * e * e, 0) / W) * Math.sqrt(Math.max(0.4, expMin / Math.max(1, minW)));
-    sd = Math.max(scaled, Math.sqrt(Math.max(0.5, mean)) * (COUNTY.has(stat) ? 1.05 : 0.6));
+    sd = Math.max(scaled, Math.sqrt(Math.max(0.5, mean)) * (COUNTY.has(stat) ? 1.05 : 0.6)) * Math.sqrt(1 + 12 / rows.length); // less history → wider
     return { mean, sd, n: rows.length, nCur: cur.length, min: expMin, last: rows.slice(-8).map((r) => valueOf(r, stat)) };
   }
   mean = rows.reduce((s, r, i) => s + w[i] * valueOf(r, stat), 0) / W;
   sd = Math.sqrt(rows.reduce((s, r, i) => s + w[i] * (valueOf(r, stat) - mean) ** 2, 0) / W);
-  sd = Math.max(sd, Math.sqrt(Math.max(0.5, mean)) * (COUNTY.has(stat) ? 1.05 : 0.8));
+  sd = Math.max(sd, Math.sqrt(Math.max(0.5, mean)) * (COUNTY.has(stat) ? 1.05 : 0.8)) * Math.sqrt(1 + 6 / rows.length);
   return { mean, sd, n: rows.length, nCur: cur.length, last: rows.slice(-8).map((r) => valueOf(r, stat)) };
 }
 /** Weight on EdgeBot's own projection vs the prop line (the line already prices roles, injuries and news EdgeBot
@@ -116,7 +121,7 @@ export function blendWithLine(proj, line, w = PROP_WEIGHT) { return { ...proj, r
 export const pHigher = (proj, line) => 1 - ncdf((line + (Number.isInteger(line) ? 0.5 : 0) - proj.mean) / proj.sd);
 
 /** Underdog-style pick strength: entries pay a fixed multiple, so each leg needs ~55–58% to break even. */
-export function propTier(p) { return p >= 0.64 ? "Strong" : p >= 0.6 ? "Value" : p >= 0.56 ? "Lean" : null; }
+export function propTier(p, proven) { return p >= 0.64 && proven ? "Strong" : p >= 0.6 ? "Value" : p >= 0.57 ? "Lean" : null; }
 
 export function gradeProp(pick, row) {
   if (!row) return null; const v = valueOf(row, pick.stat); if (v == null) return null;

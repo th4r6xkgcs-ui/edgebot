@@ -419,7 +419,8 @@ async function playersCycle({ games, archive, ratings, injuryBooks, nflMeta }) {
   for (const r of [...nfl].sort((a, b) => a.season - b.season || a.week - b.week)) { const L = hist.NFL.get(r.id) || []; L.push(r); hist.NFL.set(r.id, L); }
   // 3) prop lines for upcoming games → projections → picks
   // v2 player picks only (the first run used unbalanced lines and too little history — never counted)
-  const ledger = readJson("playerLedger.json", []).filter((r) => r.mv === 2), have = new Set(ledger.map((r) => r.id)), props = [], unmatched = new Set();
+  const ledger = readJson("playerLedger.json", []).filter((r) => r.mv === 3), have = new Set(ledger.map((r) => r.id)), props = [], unmatched = new Set();
+  const laneStats = new Map(); for (const r of ledger) if (r.status === "graded" && r.result !== "P") { const k = `${r.sport}|${r.stat}`, c = laneStats.get(k) || { n: 0, w: 0 }; c.n++; if (r.result === "W") c.w++; laneStats.set(k, c); }
   const upcoming = [...games.values()].filter((g) => g.status === "pre" && ((g.sport === "NBA" && Date.parse(g.start) < NOW + 36 * 3600e3) || (g.sport === "NFL" && Date.parse(g.start) < NOW + 5 * 864e5)) && Date.parse(g.start) > NOW);
   const R = ratings.NBA, half = R ? R.lg.avgT / 2 : 114;
   for (let i = 0; i < upcoming.length; i += 4) await Promise.all(upcoming.slice(i, i + 4).map(async (g) => {
@@ -436,10 +437,11 @@ async function playersCycle({ games, archive, ratings, injuryBooks, nflMeta }) {
       const wild = Math.abs(own.mean - L.line) > 1.6 * own.sd;
       const proj = PL.blendWithLine(own, L.line);
       const pH = PL.pHigher(proj, L.line), pickSide = pH >= 0.5 ? "higher" : "lower", p = Math.max(pH, 1 - pH);
-      const tier = wild ? null : PL.propTier(p);
+      const lane = laneStats.get(`${g.sport}|${L.stat}`), proven = lane && lane.n >= 30 && lane.w / lane.n >= 0.56;
+      const tier = wild ? null : PL.propTier(p, proven);
       const row = { id: `${g.id}~${pid}~${L.stat}`, gameId: g.id, sport: g.sport, start: g.start, pid, espnId: L.pid, name: lastRow.n, pos: lastRow.pos, team, opp, home: side === "home",
         head: g.sport === "NBA" ? `https://a.espncdn.com/i/headshots/nba/players/full/${L.pid}.png` : lastRow.head || `https://a.espncdn.com/i/headshots/nfl/players/full/${L.pid}.png`,
-        stat: L.stat, label: PL.STAT_LABEL[L.stat] || L.stat, line: L.line, proj: +proj.mean.toFixed(2), own: +own.mean.toFixed(2), wild, mv: 2, sd: +proj.sd.toFixed(2), pHigher: +pH.toFixed(4), side: pickSide, p: +p.toFixed(4), tier,
+        stat: L.stat, label: PL.STAT_LABEL[L.stat] || L.stat, line: L.line, proj: +proj.mean.toFixed(2), own: +own.mean.toFixed(2), wild, mv: 3, sd: +proj.sd.toFixed(2), pHigher: +pH.toFixed(4), side: pickSide, p: +p.toFixed(4), tier,
         games: proj.n, gamesThisSeason: proj.nCur, minutes: proj.min ? +proj.min.toFixed(1) : null, last: proj.last, status: status || null, oppFactor: +oppFactor.toFixed(3) };
       props.push(row);
       if (tier && !have.has(row.id) && (!status || status === "DAY_TO_DAY")) { ledger.push({ ...row, status: "open", savedAt: now.toISOString() }); have.add(row.id); }
