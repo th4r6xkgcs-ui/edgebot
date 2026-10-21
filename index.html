@@ -348,6 +348,25 @@ details.how ol{padding-left:18px;margin:0 0 12px}
 @media (min-width:700px){.tiles{grid-template-columns:repeat(4,minmax(0,1fr))}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 nav.tabs button[hidden]{display:none!important}
+.prk{display:grid;grid-template-columns:40px minmax(0,1fr) auto auto;gap:10px;align-items:center;padding:10px 12px;border-top:1px solid var(--line);cursor:pointer}
+.prk:first-child{border-top:0}
+.prk img{width:40px;height:40px;border-radius:50%;object-fit:cover;background:var(--panel2);border:1px solid var(--line)}
+.prk .w{min-width:0}.prk .w b{display:block;font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.prk .w small{display:block;color:var(--muted);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.prk .call2{font-weight:800;font-size:13.5px;white-space:nowrap}.prk .call2 .hi{color:#45E0AE}.prk .call2 .lo{color:#7FB8FF}
+.prk .pc{display:block;text-align:right;font:700 12px var(--mono,monospace);color:var(--muted)}
+.prk .addslip{height:34px;width:34px;padding:0;justify-content:center}
+.rank{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:6px;background:var(--panel2);font-size:10.5px;font-weight:800;margin-right:6px;color:var(--muted)}
+.projhead{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin:0 2px 8px;color:var(--muted);font-size:12.5px}
+.projgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.ptile{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:10px 10px 9px;position:relative;overflow:hidden}
+.ptile.pick{border-color:var(--tc);box-shadow:0 0 0 1px var(--tc) inset}
+.ptile small{display:block;color:var(--muted);font-size:11px;font-weight:700;letter-spacing:.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ptile b{display:block;font:800 24px var(--mono,monospace);margin:3px 0 2px;letter-spacing:-.02em}
+.ptile span{display:block;font-size:11.5px;color:var(--muted);white-space:nowrap}
+.ptile span .hi{color:#45E0AE;font-weight:800}.ptile span .lo{color:#7FB8FF;font-weight:800}
+.ptile .bar{position:absolute;left:0;bottom:0;height:3px;background:var(--tc);opacity:.85}
+.ptile .tag{position:absolute;top:7px;right:8px;font-size:10px}
 </style>
 </head>
 <body>
@@ -935,6 +954,7 @@ async function openPlayer(sp, id) {
       <div class="vs" style="grid-template-columns:1fr"><div class="t" style="cursor:default"><img class="headbig" style="--tc:${c}" src="${esc(p?.head || lines[0]?.head || "")}" alt="" onerror="this.style.visibility='hidden'"><b style="font-size:22px">${esc(name)}</b>
         <small><button class="tlink" data-team="${sp}|${esc(team)}">${mark(tm, sp)} ${esc(tm.name || team)}</button> · ${esc(p?.pos || "")}</small></div></div></div>
     <div class="sheet-body">
+      ${lines.length ? projPanel(lines, p) : ""}
       ${lines.length ? `<h2 class="sec"><span>Today’s lines</span><small>DraftKings · check Underdog</small></h2><div class="card" style="padding:2px 14px">${lines.map((x) => { const inS = slip.has(x.id); return `<div class="prow"><span><b>${esc(x.label)} ${x.line}</b><br><small style="color:var(--muted)">EdgeBot expects ${x.proj.toFixed(1)} · ${x.side === "higher" ? "▲ Higher" : "▼ Lower"} ${pct(x.p)}</small></span>${x.tier ? tierPill(x.tier, true) : `<span class="note" style="margin:0">no pick</span>`}${x.tier ? `<button class="addslip" data-slip="${esc(x.id)}" aria-pressed="${inS}">${inS ? "✓" : "+"}</button>` : "<span></span>"}</div>`; }).join("")}</div>` : ""}
       ${p ? `<h2 class="sec"><span>Averages</span></h2><div class="card scroll-x" style="padding:0 6px"><table class="ptable"><thead><tr><th></th><th>GP</th>${keys.map((k) => `<th>${STAT_NAME[k] || k}</th>`).join("")}</tr></thead><tbody>
           ${p.cur ? `<tr><td>This season</td><td>${p.cur.gp}</td>${A(p.cur)}</tr>` : ""}${p.prev ? `<tr><td>Last season</td><td>${p.prev.gp}</td>${A(p.prev)}</tr>` : ""}</tbody></table></div>
@@ -942,6 +962,21 @@ async function openPlayer(sp, id) {
           ${p.log.map((r) => `<tr><td>${/^\d{4}-W/.test(r.d) ? `Wk ${+r.d.slice(-2)}` : esc(new Date(r.d).toLocaleDateString([], { month: "short", day: "numeric" }))} <span style="color:var(--dim)">${esc(r.opp || "")}</span></td>${keys.map((k) => `<td>${r[k] ?? 0}</td>`).join("")}</tr>`).join("")}</tbody></table></div>` : ""}
       ${hist.length && isOwner ? `<h2 class="sec"><span>EdgeBot on ${esc(name.split(" ").slice(-1)[0])}</span><small>${hw}–${hist.length - hw}</small></h2><div class="card" style="padding:2px 14px">${hist.slice(-8).reverse().map((r) => `<div class="prow"><span>${r.side === "higher" ? "▲" : "▼"} ${r.line} ${esc(r.label)}</span><span class="num">${r.actual ?? ""}</span><span class="${r.result}">${r.result === "W" ? "WIN" : r.result === "L" ? "LOSS" : "PUSH"}</span></div>`).join("")}</div>` : ""}
     </div></div></div>`, () => openPlayer(sp, id));
+}
+
+const PROJ_ORDER = ["pts", "reb", "ast", "tpm", "pra", "pr", "pa", "ar", "stl", "blk", "sb", "passYds", "passTd", "passCmp", "passAtt", "int", "rushYds", "rushAtt", "rec", "recYds", "rushRecYds"];
+const oi = (k) => { const i = PROJ_ORDER.indexOf(k); return i < 0 ? 99 : i; };
+function projPanel(lines, p) {
+  const by = new Map(); for (const x of lines) { const o = by.get(x.stat); if (!o || Date.parse(x.start) < Date.parse(o.start)) by.set(x.stat, x); }
+  const L = [...by.values()].sort((a, b) => oi(a.stat) - oi(b.stat));
+  const g = L[0], top = lines.filter((x) => x.tier).sort(byPick)[0];
+  const tonight = dayLabel(g.start) === "Today" ? (new Date(g.start).getHours() >= 17 ? "tonight" : "today") : dayLabel(g.start).replace(/,.*$/, "");
+  return `<h2 class="sec"><span>Projected stats ${esc(tonight)}</span><small>${g.home ? "vs" : "@"} ${esc(g.opp)} · ${esc(timeOf(g.start))}</small></h2>
+    ${g.minutes ? `<div class="projhead"><span>Expected minutes <b style="color:var(--fg)">${g.minutes.toFixed(0)}</b></span><span>${g.gamesThisSeason ? `${g.gamesThisSeason} games this season` : `${g.games} games of history`}</span></div>` : ""}
+    <div class="projgrid">${L.map((x) => { const hi = x.side === "higher", c = hi ? "#45E0AE" : "#7FB8FF", gap = Math.min(1, Math.abs(x.proj - x.line) / Math.max(1, x.line * 0.25));
+      return `<div class="ptile ${x.tier ? "pick" : ""}" style="--tc:${c}">${x.tier ? `<span class="tag">${tierEmoji(x.tier)}</span>` : ""}<small>${esc(STAT_ABBR[x.stat] || x.label)}</small><b>${x.proj.toFixed(1)}</b><span>line ${x.line} · ${x.wild ? `<span style="color:var(--dim)">too far off</span>` : `<span class="${hi ? "hi" : "lo"}">${hi ? "▲" : "▼"} ${pct(x.p)}</span>`}</span>${x.wild ? "" : `<i class="bar" style="width:${(gap * 100).toFixed(0)}%"></i>`}</div>`; }).join("")}</div>
+    ${top ? `<p class="plain" style="margin:10px 2px 0">EdgeBot’s best play: <b class="${top.side === "higher" ? "good" : ""}">${top.side === "higher" ? "▲ Higher" : "▼ Lower"} ${top.line} ${esc(top.label)}</b>, hits ${pct(top.p)} of the time. He went ${top.side === "higher" ? "over" : "under"} in ${top.last.filter((v) => top.side === "higher" ? v > top.line : v < top.line).length} of his last ${top.last.length}.</p>` : `<p class="note" style="margin:10px 2px 0">No pick on him tonight. The projections are too close to the lines.</p>`}
+    <p class="note" style="margin:6px 2px 0">Big number = EdgeBot’s projection. Colored bar = how far it sits from the line. “Too far off” = the projection is so far from the line that something (role, injury) is probably missing, so EdgeBot won’t pick it.</p>`;
 }
 
 /* ------------------------------ fun ------------------------------ */
@@ -987,26 +1022,45 @@ function playerCard(x) {
     <div class="pfoot"><span class="note" style="margin:0;padding:0">${x.games} games of history</span><button class="addslip" data-slip="${esc(x.id)}" aria-pressed="${inSlip}">${inSlip ? "✓ In slip" : "+ Add to slip"}</button></div>
   </article>`;
 }
+const TIER_RANK = { Strong: 3, Value: 2, Lean: 1 };
+const byPick = (a, b) => (TIER_RANK[b.tier] || 0) - (TIER_RANK[a.tier] || 0) || b.p - a.p;
+function pickRow(x, i) {
+  const hi = x.side === "higher", inS = slip.has(x.id);
+  return `<div class="prk" data-player="${x.sport}|${esc(x.pid)}"><img src="${esc(x.head)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">
+    <div class="w"><b>${i != null ? `<span class="rank">${i + 1}</span>` : ""}${esc(x.name)}</b><small>${esc(x.team)} ${x.home ? "vs" : "@"} ${esc(x.opp)} · ${esc(when(x.start))} · expects ${x.proj.toFixed(1)}</small></div>
+    <div><span class="call2"><span class="${hi ? "hi" : "lo"}">${hi ? "▲" : "▼"}</span> ${x.line} ${esc(STAT_ABBR[x.stat] || x.label)}</span><span class="pc">${tierEmoji(x.tier)} ${pct(x.p)}</span></div>
+    <button class="addslip" data-slip="${esc(x.id)}" aria-pressed="${inS}" aria-label="Add to slip">${inS ? "✓" : "+"}</button></div>`;
+}
+const STAT_ABBR = { pts: "Pts", reb: "Reb", ast: "Ast", tpm: "3PM", stl: "Stl", blk: "Blk", pa: "Pts+Ast", pr: "Pts+Reb", ar: "Reb+Ast", pra: "PRA", sb: "Stl+Blk",
+  passYds: "Pass Yds", passTd: "Pass TD", passAtt: "Pass Att", passCmp: "Comp", int: "INT", rushYds: "Rush Yds", rushAtt: "Carries", rec: "Rec", recYds: "Rec Yds", rushRecYds: "Rush+Rec" };
+const tierEmoji = (t) => t === "Strong" ? "🔥🔥🔥" : t === "Value" ? "🔥🔥" : t === "Lean" ? "🔥" : "";
 function viewPlayers() {
   const P = state.players; if (!P) return loadingOrError();
-  const mode = state.pmode || "picks", q = (state.pq || "").toLowerCase();
+  const q = (state.pq || "").toLowerCase().trim();
   let list = P.props.filter((x) => Date.parse(x.start) > Date.now());
   const sports = list.map((x) => x.sport);
   if (state.psport && state.psport !== "ALL") list = list.filter((x) => x.sport === state.psport);
-  const picks = list.filter((x) => x.tier), rec = P.record || { w: 0, l: 0 };
-  if (mode === "picks") list = picks;
-  if (q) list = list.filter((x) => x.name.toLowerCase().includes(q) || x.team.toLowerCase() === q || x.label.toLowerCase().includes(q));
-  return `<section class="hero"><div class="eyebrow">Player picks · pick’em</div>
-      <h2>${picks.length ? `<em>${picks.length}</em> Higher / Lower picks` : "Player picks are loading"}</h2>
-      <div class="kpis">${isOwner ? `<div class="kpi"><b class="num">${rec.w + rec.l ? `${rec.w}–${rec.l}` : "—"}</b><span>${rec.w + rec.l ? `record · ${Math.round(100 * rec.w / (rec.w + rec.l))}%` : "record starts soon"}</span></div>` : `<div class="kpi"><b class="num">${new Set(P.props.map((x) => x.pid)).size}</b><span>players projected</span></div>`}
-        <div class="kpi"><b class="num">58%</b><span>to win 2-pick (3×)</span></div><div class="kpi"><b class="num">55%</b><span>to win 3-pick (6×)</span></div></div></section>
-    <p class="note">Lines are DraftKings’ player props. Underdog’s are usually within half a point — <b>check the line in the app</b>; if it’s moved past EdgeBot’s number, skip it.</p>
-    <div class="seg" role="group" aria-label="Players view"><button data-pmode="picks" aria-pressed="${mode === "picks"}">Picks<b>${picks.length}</b></button><button data-pmode="all" aria-pressed="${mode === "all"}">All lines<b>${P.props.length}</b></button></div>
-    <div class="chips" role="group" aria-label="Sport">${["ALL", ...Object.keys(SP).filter((s) => sports.includes(s))].map((s) => `<button class="chip" data-psport="${s}" aria-pressed="${(state.psport || "ALL") === s}">${s === "ALL" ? "All" : sportLabel(s)}${s !== "ALL" ? `<b>${sports.filter((x) => x === s).length}</b>` : ""}</button>`).join("")}</div>
-    ${mode === "all" ? `<input class="search" id="psearch" type="search" placeholder="Search a player, team or stat" value="${esc(state.pq || "")}" autocomplete="off">` : ""}
-    ${list.length ? list.slice(0, 120).map(playerCard).join("") : `<div class="card empty"><strong>${mode === "picks" ? "No player picks right now" : "No lines match"}</strong>${mode === "picks" ? "Picks appear when EdgeBot’s projection beats the line by enough to matter. NBA picks grow as last season’s box scores finish loading." : "Try another name."}</div>`}
+  // one best pick per player, ranked strongest first
+  const best = new Map(); for (const x of list.filter((x) => x.tier).sort(byPick)) if (!best.has(x.pid)) best.set(x.pid, x);
+  const picks = [...best.values()];
+  // every player with a line tonight, for browsing
+  const people = new Map(); for (const x of list) { const e = people.get(x.pid) || { x, n: 0, picks: 0 }; e.n++; if (x.tier) e.picks++; people.set(x.pid, e); }
+  let dir = [...people.values()].sort((a, b) => b.picks - a.picks || (b.x.minutes || 0) - (a.x.minutes || 0) || a.x.name.localeCompare(b.x.name));
+  if (q) dir = dir.filter(({ x }) => x.name.toLowerCase().includes(q) || x.team.toLowerCase() === q || x.opp.toLowerCase() === q);
+  const showAll = state.pall || q;
+  return `<section class="hero"><div class="eyebrow">Player picks · Underdog / pick’em</div>
+      <h2>${picks.length ? `<em>${picks.length}</em> picks tonight` : "No player picks yet"}</h2>
+      <p class="muted" style="margin:6px 0 0;font-size:13.5px">Best first. Tap a player for tonight’s projected stats. Tap <b>+</b> to build a slip.</p></section>
+    <div class="chips" role="group" aria-label="Sport">${["ALL", ...Object.keys(SP).filter((s) => sports.includes(s))].map((s) => `<button class="chip" data-psport="${s}" aria-pressed="${(state.psport || "ALL") === s}">${s === "ALL" ? "All" : sportLabel(s)}</button>`).join("")}</div>
+    <h2 class="sec"><span>🔥 Top picks</span><small>${picks.length} players</small></h2>
+    ${picks.length ? `<div class="card" style="padding:2px 0">${picks.slice(0, 40).map((x, i) => pickRow(x, i)).join("")}</div>` : `<div class="card empty"><strong>No player picks right now</strong>Picks show up when EdgeBot’s projection beats the line by enough to matter (57%+). Browse projections for every player below.</div>`}
+    <h2 class="sec"><span>All players tonight</span><small>${people.size}</small></h2>
+    <input class="search" id="psearch" type="search" placeholder="Search a player or team" value="${esc(state.pq || "")}" autocomplete="off">
+    ${dir.length ? `<div class="card" style="padding:2px 0">${dir.slice(0, showAll ? 150 : 12).map(({ x, n, picks: k }) => `<div class="prk" data-player="${x.sport}|${esc(x.pid)}" style="grid-template-columns:40px minmax(0,1fr) auto"><img src="${esc(x.head)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'"><div class="w"><b>${esc(x.name)}</b><small>${esc(x.team)} ${x.home ? "vs" : "@"} ${esc(x.opp)} · ${esc(when(x.start))}</small></div><span class="pc">${k ? `🔥 ${k} pick${k > 1 ? "s" : ""}` : `${n} line${n > 1 ? "s" : ""}`} ›</span></div>`).join("")}</div>
+      ${!showAll && dir.length > 12 ? `<button class="chip" data-pall="1" style="margin:10px auto;display:block">Show all ${dir.length} players</button>` : ""}` : `<div class="card empty"><strong>No players match</strong>Try another name.</div>`}
     ${slipLegs().length ? `<div style="height:72px"></div>` : ""}
-    <p class="note">How it works: each player’s recent games (this season weighted most), minutes and the opponent’s defence give a projection; it’s blended with the line (EdgeBot’s share now: ${Object.entries(P.weights || {}).map(([k, v]) => `${k} ${Math.round(v * 100)}%`).join(", ") || "40%"} — learned from graded picks once 40+ exist), since the line knows about roles and injuries. A pick needs 57%+. Picks are saved before the game and graded from the box score.</p>`;
+    <p class="note">Lines are DraftKings’ player props. Underdog’s are usually within half a point, so <b>check the line in the app</b>. If it has moved past EdgeBot’s number, skip it. Pick’em break-even: about 58% per leg on a 2-pick (3×) and 55% on a 3-pick (6×).</p>
+    <p class="note">How it works: each player’s recent games (this season weighted most), minutes and the opponent’s defence give a projection. That gets blended with the line, because the line knows about roles and injuries (EdgeBot’s share: ${Object.entries(P.weights || {}).map(([k, v]) => `${k} ${Math.round(v * 100)}%`).join(", ") || "40%"}). A pick needs 57%+. Picks are saved before the game and graded from the box score.</p>`;
 }
 function loadingOrError() {
   if (state.error) return `<div class="card empty"><strong>Can’t load right now</strong>${esc(state.error)}</div>`;
@@ -1160,6 +1214,7 @@ document.addEventListener("click", (e) => {
   if (t.dataset.clearslip) { slip.clear(); saveSlip(); closeSheet(); render(); return; }
   if (t.dataset.copyslip) { const txt = slipLegs().map((x) => `${x.name} ${x.side === "higher" ? "Higher" : "Lower"} ${x.line} ${x.label}`).join("\n"); navigator.clipboard?.writeText(txt).then(() => toast("Copied — paste into your notes or the app"), () => toast("Couldn’t copy on this device")); return; }
   if (t.dataset.psport) { state.psport = t.dataset.psport; render(); return; }
+  if (t.dataset.pall) { state.pall = true; render(); return; }
   if (t.dataset.save) { const id = t.dataset.save; state.saved = state.saved.includes(id) ? state.saved.filter((x) => x !== id) : [...state.saved, id]; saveSaved(); render();
     if (t.dataset.keep) { const on = state.saved.includes(id); t.textContent = on ? "★ Saved" : "☆ Save pick"; t.classList.toggle("primary", !on); toast(on ? "Saved — find it under ★ Saved" : "Removed from saved"); } return; }
   if (t.dataset.share) { const g = games().find((x) => x.id === t.dataset.share); if (g) sharePick(g); return; }
