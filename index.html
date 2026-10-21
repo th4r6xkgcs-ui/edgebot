@@ -238,6 +238,17 @@ table.lanes th.n{text-align:right}
 .tip img{width:40px;height:40px;border-radius:10px;flex:none}
 .tip div{flex:1;min-width:0;font-size:13.5px;line-height:1.35}
 .tip button{border:0;background:transparent;width:40px;height:40px;color:var(--muted)}
+.crowd-row{display:grid;grid-template-columns:minmax(0,1fr) 110px;gap:12px;align-items:center;padding:12px 14px;border-top:1px solid var(--line);width:100%;text-align:left;background:transparent;border-left:0;border-right:0;border-bottom:0}
+.crowd-row:first-child{border-top:0}
+.money{font:700 15px var(--mono)}
+.money small{display:block;font:500 11px var(--body);color:var(--muted)}
+.vsbook{display:inline-flex;gap:5px;align-items:center;font:600 11.5px var(--mono);border-radius:999px;padding:2px 8px;background:rgba(143,128,255,.12);color:#C4BBFF;border:1px solid rgba(143,128,255,.3)}
+.src{display:grid;grid-template-columns:86px minmax(0,1fr) 70px;gap:10px;align-items:center;padding:10px 0;border-top:1px solid var(--line);font-size:13px}
+.src:first-child{border-top:0}
+.src b{font-weight:700}
+.src .bar2{display:flex;height:9px;border-radius:5px;overflow:hidden;background:var(--panel2)}
+.src .bar2 i{display:block}
+.src span:last-child{text-align:right;font:600 12px var(--mono);color:var(--muted)}
 details.how{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-md);padding:2px 14px;margin-bottom:10px}
 details.how summary{cursor:pointer;padding:12px 0;font-weight:700;list-style:none;display:flex;justify-content:space-between}
 details.how summary::after{content:"+";color:var(--muted);font-weight:500}
@@ -382,6 +393,22 @@ function moveDirection(g, p) {
   return { ...m, toward };
 }
 
+/* ------------------------------ the crowd ------------------------------ */
+const money = (v) => v == null ? "—" : v >= 1e6 ? "$" + (v / 1e6).toFixed(1) + "M" : v >= 1e3 ? "$" + Math.round(v / 1e3) + "K" : "$" + Math.round(v);
+/** Sportsbook (no-vig moneyline) home-win chance, for crowd-vs-books comparisons. */
+function bookHome(g) { if (g.mlHome == null || g.mlAway == null) return null; const h = implied(g.mlHome), a = implied(g.mlAway), d = g.mlDraw != null ? implied(g.mlDraw) : 0; return h / (h + a + d); }
+function crowdVsBooks(g) {
+  const c = g.crowd, b = bookHome(g); if (!c || c.pHome == null || b == null) return null;
+  const diff = c.pHome - b; if (Math.abs(diff) < 0.03) return null;
+  return { team: diff > 0 ? g.home : g.away, pts: Math.abs(diff) };
+}
+function crowdChip(g, p) {
+  const c = g.crowd; if (!c || c.pHome == null) return "";
+  const side = pickedTeam(g, p); if (!side) return `<span class="move" style="background:rgba(143,128,255,.1);border-color:rgba(143,128,255,.3);color:#C4BBFF">👥 ${money(c.money)} traded on this game</span>`;
+  const cp = side === "home" ? c.pHome : 1 - c.pHome - (c.pDraw || 0), agree = cp >= p.pMkt;
+  return `<span class="move ${agree ? "with" : ""}" style="${agree ? "" : "background:rgba(143,128,255,.1);border-color:rgba(143,128,255,.3);color:#C4BBFF"}">👥 Crowd ${pct(cp)} on ${esc(g[side].abbr)} · ${money(c.money)} traded</span>`;
+}
+
 /* ------------------------------ pieces ------------------------------ */
 function ring(p, pMkt, color) {
   const R = 32, C = 2 * Math.PI * R, a = Math.max(0, Math.min(1, p)), m = Math.max(0, Math.min(1, pMkt));
@@ -404,6 +431,7 @@ function pickCard({ g, p, id }, feat) {
       ${ring(p.p, p.pMkt, ringColor)}
     </button>
     ${why ? `<p class="reason">${esc(why)}</p>` : ""}
+    ${crowdChip(g, p)}
     ${(() => { const m = moveDirection(g, p); return m ? `<span class="move ${m.toward ? "with" : "against"}" title="Line movement since EdgeBot first saw it">${m.toward ? "▲" : "▼"} ${esc(m.text)} · ${m.toward ? "moving our way" : "moving against"}</span>` : ""; })()}
     <div class="stats"><div><span>Edge</span><b class="good">${sgn(p.edge * 100)}%</b></div><div><span>EV</span><b>${sgn(p.ev * 100)}%</b></div><div><span>Fair</span><b>${am(p.fair)}</b></div><div><span>Stake</span><b>${(p.stake ?? 0.25).toFixed(2).replace(/0$/, "")}u</b></div></div>
   </article>`;
@@ -474,6 +502,7 @@ function viewGames() {
   const now = Date.now(), gs = games();
   const groups = { upcoming: gs.filter((g) => g.status === "pre" && Date.parse(g.start) > now - 4 * 3600e3), live: gs.filter((g) => g.status === "in"), finals: gs.filter((g) => g.status === "post").reverse() };
   if (state.day === "power") return viewPower(groups);
+  if (state.day === "crowd") return viewCrowd(groups);
   let list = groups[state.day] || [];
   const sports = list.map((g) => g.sport);
   if (state.sport !== "ALL" && state.sport !== "SAVED") list = list.filter((g) => g.sport === state.sport);
@@ -489,7 +518,25 @@ function gamesSeg(groups) {
       <button data-day="upcoming" aria-pressed="${state.day === "upcoming"}">Upcoming<b>${groups.upcoming.length}</b></button>
       ${groups.live.length ? `<button data-day="live" aria-pressed="${state.day === "live"}"><span class="livebadge" style="color:inherit">Live</span><b>${groups.live.length}</b></button>` : ""}
       <button data-day="finals" aria-pressed="${state.day === "finals"}">Finals<b>${groups.finals.length}</b></button>
+      <button data-day="crowd" aria-pressed="${state.day === "crowd"}">Crowd</button>
       <button data-day="power" aria-pressed="${state.day === "power"}">Power</button></div>`;
+}
+function viewCrowd(groups) {
+  let list = [...groups.live, ...groups.upcoming].filter((g) => g.crowd && g.crowd.money > 0);
+  const sports = list.map((g) => g.sport);
+  if (state.sport !== "ALL" && state.sport !== "SAVED") list = list.filter((g) => g.sport === state.sport);
+  list.sort((a, b) => b.crowd.money - a.crowd.money);
+  const total = list.reduce((x, g) => x + g.crowd.money, 0);
+  return `${gamesSeg(groups)}${sportChips(sports, "sport2")}
+    <section class="hero" style="margin-bottom:12px"><div class="eyebrow">Where the money is</div><h2><em>${money(total)}</em> traded on these games</h2>
+      <p class="note" style="margin:0;padding:0;position:relative;z-index:1">Real-money prediction markets (Polymarket, Kalshi). Every trade has a buyer and a seller, so this shows the crowd’s price and how much is moving — not a “% of bets”. Purple tags mark games where the crowd and the sportsbooks disagree by 3+ points.</p></section>
+    ${list.length ? `<div class="card">${list.slice(0, 60).map((g) => { const c = g.crowd, vb = crowdVsBooks(g);
+      return `<button class="crowd-row" data-game="${esc(g.id)}"><span class="side" style="display:flex;flex-direction:column;gap:7px;min-width:0">
+          <span class="team" style="color:var(--fg)">${mark(g.away, g.sport)}<span>${esc(g.away.short || g.away.name)}</span><em>${pct(c.pHome != null ? 1 - c.pHome - (c.pDraw || 0) : null)}</em></span>
+          <span class="team" style="color:var(--fg)">${mark(g.home, g.sport)}<span>${esc(g.home.short || g.home.name)}</span><em>${pct(c.pHome)}</em></span>
+          <span class="meta2" style="font-size:11.5px;color:var(--dim);display:flex;gap:8px;flex-wrap:wrap"><span>${esc(when(g.start))} · ${esc(g.sport === "NCAAF" ? "CFB" : g.sport)}</span>${vb ? `<span class="vsbook">Crowd likes ${esc(vb.team.abbr)} +${Math.round(vb.pts * 100)} vs books</span>` : ""}${c.move24 && Math.abs(c.move24) >= 0.03 ? `<span class="vsbook" style="background:rgba(92,200,255,.1);border-color:rgba(92,200,255,.3);color:#9FDFFF">${c.move24 > 0 ? "▲" : "▼"} ${esc(g.home.abbr)} ${sgn(c.move24 * 100, 0)} today</span>` : ""}</span></span>
+        <span style="display:flex;flex-direction:column;gap:6px;align-items:stretch"><span class="money" style="text-align:right">${money(c.money)}<small>${c.money24 ? money(c.money24) + " in 24h" : "traded"}</small></span>${c.pHome != null ? winBar(g, 1 - c.pHome - (c.pDraw || 0), c.pHome, c.pDraw || 0) : ""}</span></button>`; }).join("")}</div>`
+      : `<div class="card empty"><strong>No crowd markets matched yet</strong>Prediction markets list most NBA, NFL, NHL and college games a few days ahead.</div>`}`;
 }
 function viewPower(groups) {
   const P = state.model?.power || {}, sports = Object.keys(P).filter((s) => P[s].length);
@@ -600,6 +647,26 @@ function lineChart(g) {
       <text x="${P}" y="${Hh + 13}" fill="#8C98B4" font-size="11" font-family="JetBrains Mono, ui-monospace, Menlo, monospace">open ${esc(fmt(vals[0]))}</text>
       <text x="${W - P}" y="${Hh + 13}" fill="#EEF1F8" font-size="11" text-anchor="end" font-family="JetBrains Mono, ui-monospace, Menlo, monospace">now ${esc(fmt(vals[vals.length - 1]))}</text></svg></div>`;
 }
+function crowdBlock(g) {
+  const c = g.crowd, b = bookHome(g), ep = g.espnPredictor, e = g.pred;
+  if (!c && !ep && b == null) return "";
+  const row = (name, h, a, d, extra) => h == null ? "" : `<div class="src"><b>${name}</b>${winBar(g, a, h, d || 0)}<span>${pct(a)} · ${pct(h)}</span></div>${extra ? `<div style="font-size:11.5px;color:var(--dim);margin:-6px 0 4px 96px">${extra}</div>` : ""}`;
+  const norm3 = (h, a, d) => { const s = h + a + (d || 0); return [h / s, a / s, (d || 0) / s]; };
+  const pm = c?.pm && c.pm.home > 0 ? norm3(c.pm.home, c.pm.away, c.pm.draw) : null, k = c?.k && c.k.home > 0 ? norm3(c.k.home, c.k.away, c.k.draw) : null;
+  const bd = g.mlDraw != null ? implied(g.mlDraw) : 0, bA = b != null ? (implied(g.mlAway) / (implied(g.mlHome) + implied(g.mlAway) + bd)) : null;
+  const vb = crowdVsBooks(g);
+  return `<h2 class="sec"><span>Where the money is</span><small>${esc(g.away.abbr)} · ${esc(g.home.abbr)} win chance</small></h2>
+    <div class="card" style="padding:4px 14px 10px">
+      ${row("EdgeBot", e?.pHome, e?.pAway, e?.pDraw)}
+      ${row("Sportsbooks", b, bA, b != null && bd ? 1 - b - bA : 0, "DraftKings moneyline, vig removed")}
+      ${pm ? row("Polymarket", pm[0], pm[1], pm[2], `${money(c.pm.vol)} traded${c.pm.vol24 ? ` · ${money(c.pm.vol24)} in 24h` : ""}${c.pm.spread ? ` · spread ${esc(c.pm.spread.label)}: ${pct(c.pm.spread.favP)}` : ""}${c.pm.total ? ` · O/U ${c.pm.total.line}: over ${pct(c.pm.total.over)}` : ""}`) : ""}
+      ${k ? row("Kalshi", k[0], k[1], k[2], `${money(c.k.vol)} traded${c.k.vol24 ? ` · ${money(c.k.vol24)} in 24h` : ""}${c.k.homePrev ? ` · ${esc(g.home.abbr)} was ${pct(c.k.homePrev)} yesterday` : ""}`) : ""}
+      ${ep ? row("ESPN model", ep.home, ep.away, Math.max(0, 1 - ep.home - ep.away), "ESPN Matchup Predictor") : ""}
+      ${vb ? `<p class="note" style="margin:8px 0 0;padding:0"><span class="vsbook">Crowd vs books</span> The prediction-market crowd rates ${esc(vb.team.short || vb.team.abbr)} ${Math.round(vb.pts * 100)} points higher than the sportsbooks do.</p>` : ""}
+      ${g.ats && (g.ats.home || g.ats.away) ? `<p class="note" style="margin:8px 0 0;padding:0">Against the spread this season: ${esc(g.away.abbr)} ${esc(g.ats.away || "—")} · ${esc(g.home.abbr)} ${esc(g.ats.home || "—")}</p>` : ""}
+      <p class="note" style="margin:8px 0 0;padding:0;color:var(--dim)">Crowd and ESPN numbers are shown for context and logged with each pick, but don’t move EdgeBot’s picks until they prove they help.</p>
+    </div>`;
+}
 async function sharePick(g) {
   const pk = g.pick, text = pk ? `EdgeBot pick: ${pk.label} ${am(pk.price)} (${g.away.abbr} @ ${g.home.abbr}, ${dayLabel(g.start)} ${timeOf(g.start)}) — EdgeBot ${pct(pk.p)} vs ${pct(pk.pMkt)} priced in. ${pk.tier}.`
     : `${g.away.name} @ ${g.home.name} — EdgeBot: ${g.home.abbr} ${pct(g.pred?.pHome)} / ${g.away.abbr} ${pct(g.pred?.pAway)}.`;
@@ -634,6 +701,7 @@ function openGame(id) {
       ${marginChart(g, p)}` : fin ? "" : `<p class="note">No line or ratings yet, so EdgeBot isn’t projecting this one.</p>`}
     ${contextChips(g).length ? `<div class="ctx">${contextChips(g).map((x) => `<span>${esc(x)}</span>`).join("")}</div>` : ""}
     <div class="actions">${g.pick ? `<button class="btn ${state.saved.includes(`${g.id}~${g.pick.market}~${g.pick.side}`) ? "" : "primary"}" data-save="${esc(`${g.id}~${g.pick.market}~${g.pick.side}`)}" data-keep="1">${state.saved.includes(`${g.id}~${g.pick.market}~${g.pick.side}`) ? "★ Saved" : "☆ Save pick"}</button>` : ""}<button class="btn" data-share="${esc(g.id)}">↗ Share</button></div>
+    ${crowdBlock(g)}
     ${lineChart(g)}
     <h2 class="sec"><span>Why</span></h2><ul class="why">${(g.why || []).filter((x) => !/injuries:/.test(x)).map((x) => `<li>${esc(x)}</li>`).join("")}</ul>
     ${injuryBlock(g)}

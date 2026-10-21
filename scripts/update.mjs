@@ -72,6 +72,87 @@ async function injuries(sport) {
   }
   return out;
 }
+/* ---------- the crowd: prediction-market money (Polymarket, Kalshi — public APIs) ---------- */
+const PM_SERIES = { NBA: 10345, NFL: 12185, NHL: 10346, NCAAF: 12756, EPL: 10188, MLB: 3 };
+const KALSHI_SERIES = { NBA: "KXNBAGAME", NFL: "KXNFLGAME", NHL: "KXNHLGAME", NCAAF: "KXNCAAFGAME", EPL: "KXEPLGAME", MLB: "KXMLBGAME" };
+const norm = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+/** Does a crowd-market team label ("Magic", "Golden State", "Man City") name this ESPN team? */
+function sameTeam(label, t) {
+  const L = norm(label); if (!L) return false;
+  const names = [t.name, t.short, t.abbr].map(norm).filter(Boolean);
+  return names.some((n) => n === L || n.startsWith(L + " ") || n.endsWith(" " + L) || (L.length >= 4 && n.includes(L)) || (n.length >= 4 && L.includes(n)));
+}
+async function polymarket(sport) {
+  const out = [];
+  for (let offset = 0; offset < 300; offset += 100) {
+    const ev = await getJson(`https://gamma-api.polymarket.com/events?series_id=${PM_SERIES[sport]}&closed=false&limit=100&offset=${offset}&order=startDate&ascending=true`);
+    if (!Array.isArray(ev) || !ev.length) break;
+    for (const e of ev) {
+      const mk = (e.markets || []).filter((m) => m.active !== false && !m.closed);
+      const ml = mk.find((m) => m.sportsMarketType === "moneyline") || (mk.length === 1 ? mk[0] : null); if (!ml) continue;
+      const parse = (x) => { try { return JSON.parse(x); } catch { return null; } };
+      const outs = parse(ml.outcomes), px = (parse(ml.outcomePrices) || []).map(Number); if (!outs || outs.length < 2) continue;
+      const sp = mk.find((m) => m.sportsMarketType === "spreads"), tot = mk.find((m) => m.sportsMarketType === "totals");
+      out.push({ start: e.startTime || ml.gameStartTime?.replace(" ", "T").replace("+00", "Z") || e.endDate, title: e.title, slug: e.slug, vol: +e.volume || 0, vol24: +e.volume24hr || 0,
+        outcomes: outs, prices: px, mlVol: +ml.volumeNum || 0,
+        spread: sp ? { q: sp.question, line: +sp.line, outcomes: parse(sp.outcomes), prices: (parse(sp.outcomePrices) || []).map(Number), vol: +sp.volumeNum || 0 } : null,
+        total: tot ? { line: +tot.line, over: +(parse(tot.outcomePrices) || [])[0], vol: +tot.volumeNum || 0 } : null });
+    }
+    if (ev.length < 100) break;
+  }
+  return out;
+}
+async function kalshi(sport) {
+  const byEvent = new Map(); let cursor = "";
+  for (let page = 0; page < 3; page++) {
+    const d = await getJson(`https://api.elections.kalshi.com/trade-api/v2/markets?series_ticker=${KALSHI_SERIES[sport]}&status=open&limit=1000${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`);
+    for (const m of d?.markets || []) {
+      const e = byEvent.get(m.event_ticker) || { ticker: m.event_ticker, sides: [] };
+      e.sides.push({ team: m.yes_sub_title, last: +m.last_price_dollars || null, bid: +m.yes_bid_dollars || null, ask: +m.yes_ask_dollars || null, prev: +m.previous_price_dollars || null, vol: +m.volume_fp || 0, vol24: +m.volume_24h_fp || 0, oi: +m.open_interest_fp || 0, when: m.occurrence_datetime || m.expected_expiration_time });
+      byEvent.set(m.event_ticker, e);
+    }
+    cursor = d?.cursor; if (!cursor || !(d?.markets || []).length) break;
+  }
+  return [...byEvent.values()];
+}
+const mid = (s) => s.bid && s.ask ? (s.bid + s.ask) / 2 : s.last;
+/** Attach crowd-money data to ESPN games (matched by teams and kickoff within 3 hours / same date). */
+function attachCrowd(gameList, pm, ks) {
+  for (const g of gameList) {
+    if (g.status === "post") continue;
+    const t0 = Date.parse(g.start), crowd = {};
+    const e = pm.find((x) => Math.abs(Date.parse(x.start) - t0) < 3 * 3600e3 && x.outcomes.some((o) => sameTeam(o, g.home)) && x.outcomes.some((o) => sameTeam(o, g.away)));
+    if (e) {
+      const hi = e.outcomes.findIndex((o) => sameTeam(o, g.home)), ai = e.outcomes.findIndex((o) => sameTeam(o, g.away)), di = e.outcomes.findIndex((o) => /draw|tie/i.test(o));
+      crowd.pm = { home: e.prices[hi], away: e.prices[ai], draw: di >= 0 ? e.prices[di] : null, vol: Math.round(e.vol), vol24: Math.round(e.vol24), mlVol: Math.round(e.mlVol), slug: e.slug,
+        spread: e.spread && e.spread.outcomes ? { label: e.spread.q, line: e.spread.line, fav: e.spread.outcomes[0], favP: e.spread.prices[0], vol: Math.round(e.spread.vol) } : null,
+        total: e.total && isFinite(e.total.over) ? { line: e.total.line, over: e.total.over, vol: Math.round(e.total.vol) } : null };
+    }
+    const day = etDate(t0), k = ks.find((x) => x.sides.some((s) => sameTeam(s.team, g.home)) && x.sides.some((s) => sameTeam(s.team, g.away)) && x.sides.some((s) => s.when && Math.abs(Date.parse(s.when) - t0) < 36 * 3600e3));
+    if (k) {
+      const h = k.sides.find((s) => sameTeam(s.team, g.home)), a = k.sides.find((s) => sameTeam(s.team, g.away)), d = k.sides.find((s) => /tie|draw/i.test(s.team || ""));
+      crowd.k = { home: mid(h), away: mid(a), draw: d ? mid(d) : null, homePrev: h.prev, awayPrev: a.prev, vol: Math.round(k.sides.reduce((x, s) => x + s.vol, 0)), vol24: Math.round(k.sides.reduce((x, s) => x + s.vol24, 0)), oi: Math.round(k.sides.reduce((x, s) => x + s.oi, 0)), ticker: k.ticker };
+    }
+    void day;
+    if (!crowd.pm && !crowd.k) continue;
+    // one crowd number: money-weighted, normalised home-win probability
+    const srcs = [];
+    if (crowd.pm && crowd.pm.home > 0 && crowd.pm.away > 0) srcs.push({ p: crowd.pm.home / (crowd.pm.home + crowd.pm.away + (crowd.pm.draw || 0)), d: crowd.pm.draw ? crowd.pm.draw / (crowd.pm.home + crowd.pm.away + crowd.pm.draw) : 0, w: Math.max(1, crowd.pm.mlVol || crowd.pm.vol) });
+    if (crowd.k && crowd.k.home > 0 && crowd.k.away > 0) srcs.push({ p: crowd.k.home / (crowd.k.home + crowd.k.away + (crowd.k.draw || 0)), d: crowd.k.draw ? crowd.k.draw / (crowd.k.home + crowd.k.away + crowd.k.draw) : 0, w: Math.max(1, crowd.k.vol) });
+    const W = srcs.reduce((x, s) => x + s.w, 0);
+    if (W) { crowd.pHome = srcs.reduce((x, s) => x + s.p * s.w, 0) / W; crowd.pDraw = srcs.reduce((x, s) => x + s.d * s.w, 0) / W; }
+    crowd.money = (crowd.pm?.vol || 0) + (crowd.k?.vol || 0); crowd.money24 = (crowd.pm?.vol24 || 0) + (crowd.k?.vol24 || 0);
+    if (crowd.k?.homePrev && crowd.k.home) crowd.move24 = crowd.k.home - crowd.k.homePrev;
+    g.crowd = crowd;
+  }
+}
+/** ESPN game summary: ESPN's own matchup predictor and each team's record against the spread. */
+async function espnExtras(g) {
+  const d = await getJson(`https://site.api.espn.com/apis/site/v2/sports/${PATHS[g.sport]}/summary?event=${g.id.split(":")[1]}`); if (!d) return;
+  const pr = d.predictor; if (pr?.homeTeam && pr?.awayTeam) { const h = num(pr.homeTeam.gameProjection), a = num(pr.awayTeam.gameProjection); if (h != null && a != null) g.espnPredictor = { home: h / 100, away: a / 100 }; }
+  const ats = {}; for (const t of d.againstTheSpread || []) { const ab = t.team?.abbreviation, rec = (t.records || [])[0]?.summary; if (ab && rec) ats[ab === g.home.abbr ? "home" : ab === g.away.abbr ? "away" : ab] = rec; }
+  if (ats.home || ats.away) g.ats = ats;
+}
 const num = (x) => { if (x === null || x === undefined || x === "") return null; const v = typeof x === "string" ? parseFloat(x.replace(/^EVEN$/i, "100")) : +x; return isFinite(v) ? v : null; };
 const oddsSamples = {}; // one raw odds object per sport, saved for debugging field names
 /** One ESPN event -> engine game (or null). */
@@ -228,6 +309,13 @@ async function main() {
     const hour = new Date(g.start).getUTCHours(), H = w?.hourly;
     if (H?.time) { const i = H.time.findIndex((t) => +t.slice(11, 13) === hour); if (i >= 0) g.weather = { outdoor: true, windMph: H.wind_speed_10m[i], gustMph: H.wind_gusts_10m?.[i], tempF: H.temperature_2m?.[i], rainPct: H.precipitation_probability?.[i], source: "Open-Meteo forecast" }; }
   }
+  // the crowd (prediction markets) + ESPN extras for games in the next ~36 hours
+  const upcoming = [...games.values()].filter((g) => g.status !== "post" && Date.parse(g.start) < NOW + 7 * 864e5);
+  const sportsNow = [...new Set(upcoming.map((g) => g.sport))];
+  const pmAll = [], kAll = [];
+  for (const sp of sportsNow) { const [pm, k] = await Promise.all([polymarket(sp), kalshi(sp)]); pmAll.push(...pm); kAll.push(...k); attachCrowd(upcoming.filter((g) => g.sport === sp), pm, k); }
+  const soon = upcoming.filter((g) => g.status === "pre" && Date.parse(g.start) < NOW + 36 * 3600e3);
+  for (let i = 0; i < soon.length; i += 6) await Promise.all(soon.slice(i, i + 6).map(espnExtras));
   // rebuild ratings from the archive (last season regressed 30% toward average, then this season)
   const ratings = {};
   for (const sp of Object.keys(E.SPORTS)) if (archive[sp].length) ratings[sp] = E.buildRatings(sp, archive[sp], SEASON_START[sp], now.toISOString());
@@ -249,6 +337,10 @@ async function main() {
   }
   // picks whose game vanished or never finished: void after 4 days (never counted)
   for (const r of ledger) if (r.status === "open" && Date.parse(r.start) < NOW - 4 * 864e5) Object.assign(r, { status: "void", note: "No verified final found." });
+  for (const r of out.newPicks) { const g = games.get(r.gameId); if (!g) continue;
+    const side = r.side === "home" ? "home" : r.side === "away" ? "away" : null;
+    if (g.crowd?.pHome != null && side) r.crowdP = +(side === "home" ? g.crowd.pHome : 1 - g.crowd.pHome - (g.crowd.pDraw || 0)).toFixed(4);
+    if (g.espnPredictor && side) r.espnP = g.espnPredictor[side]; }
   ledger.push(...out.newPicks);
   // Closing-line value: once a game has started, compare each pick's number with the last pregame line.
   // Beating the close consistently is the quickest honest sign of a real edge (far faster than W/L).
