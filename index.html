@@ -347,6 +347,7 @@ details.how p,details.how li{font-size:13.5px;color:#C9D1E4;margin:6px 0}
 details.how ol{padding-left:18px;margin:0 0 12px}
 @media (min-width:700px){.tiles{grid-template-columns:repeat(4,minmax(0,1fr))}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+nav.tabs button[hidden]{display:none!important}
 </style>
 </head>
 <body>
@@ -420,6 +421,21 @@ function mark(t, sport, big) {
   if (full?.logo) return `<img class="tlogo ${big ? "big" : ""}" src="${esc(full.logo)}" alt="" loading="lazy" decoding="async" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'tmono${big ? " big" : ""}',textContent:'${esc((full.abbr || "").slice(0, 4))}',style:'background:${teamColor(full)}'}))">`;
   return `<span class="tmono ${big ? "big" : ""}" style="background:${teamColor(full)}">${esc((full?.abbr || "?").slice(0, 4))}</span>`;
 }
+
+/* ------------------------------ owner-only records ------------------------------ */
+// Records (W–L, units, closing-line stats) show only on the owner's devices. Opening the private owner link once
+// (…/edgebot/#owner-<token>) unlocks this device. Only a hash of the token lives here. Note: the raw data files
+// are still public on GitHub; this keeps records out of the app for everyone else.
+const OWNER_HASH = "78920e756c354355637872e80757195f326fa87f096d2a781bd4248a4f413a27";
+let isOwner = false; try { isOwner = localStorage.getItem("edgebot-owner") === OWNER_HASH; } catch {}
+async function ownerCheck() {
+  const m = location.hash.match(/^#owner-([A-Za-z0-9]+)$/); if (!m || !crypto?.subtle) return;
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(m[1]));
+  const hex = [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+  if (hex === OWNER_HASH) { try { localStorage.setItem("edgebot-owner", hex); } catch {} isOwner = true; history.replaceState(null, "", location.pathname); applyOwner(); render(); toast("Owner mode on — records visible on this device"); }
+}
+ownerCheck(); addEventListener("hashchange", ownerCheck);
+function applyOwner() { const b = document.querySelector('nav.tabs [data-tab="record"]'); if (b) b.hidden = !isOwner; document.querySelector("nav.tabs").style.gridTemplateColumns = `repeat(${isOwner ? 5 : 4},1fr)`; if (!isOwner && state.tab === "record") state.tab = "picks"; }
 
 /* ------------------------------ data ------------------------------ */
 const DATA_URL = "https://raw.githubusercontent.com/th4r6xkgcs-ui/edgebot/data/app.json";
@@ -592,11 +608,13 @@ function viewPicks() {
   return `${installTip()}<section class="hero">
       <div class="eyebrow">${esc(new Date().toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" }))}</div>
       <h2>${total ? `<em>${total}</em> picks on the board${strong ? `, ${strong} running hot` : ""}` : "No edges on the board yet"}</h2>
-      <div class="kpis">
+      ${!isOwner ? `<div class="kpis"><div class="kpi"><b class="num">${games().filter((g) => g.status !== "post" && Date.parse(g.start) < Date.now() + 864e5).length}</b><span>games in the next 24h</span></div>
+        <div class="kpi"><b class="num">${state.players?.props?.filter((x) => x.tier).length ?? 0}</b><span>player picks</span></div>
+        <div class="kpi"><b class="num">${money(games().reduce((a, g) => a + (g.crowd?.money || 0), 0))}</b><span>crowd money tracked</span></div></div>` : `<div class="kpis">
         <div class="kpi"><b class="num">${R.dec.length ? `${R.w}–${R.l}` : "—"}</b><span>${R.dec.length ? `record · ${Math.round(100 * R.w / R.dec.length)}%` : "record starts soon"}</span></div>
         <div class="kpi"><b class="num ${R.units > 0 ? "good" : R.units < 0 ? "bad" : ""}">${R.g.length ? sgn(R.units) + "u" : "—"}</b><span>units, 1u flat</span></div>
         <div class="kpi"><b class="num ${clv.length && beat / clv.length >= 0.5 ? "good" : ""}">${clv.length ? Math.round(100 * beat / clv.length) + "%" : "—"}</b><span>beat the close</span></div>
-      </div></section>
+      </div>`}</section>
     ${trending()}
     <div class="seg" role="group" aria-label="When">${[["all", "All", total], ["today", "Today", byWhen.today], ["tomorrow", "Tomorrow", byWhen.tomorrow], ["later", "Later", byWhen.later]].map(([k, l, n]) => `<button data-when="${k}" aria-pressed="${state.when === k}">${l}<b>${n}</b></button>`).join("")}</div>
     ${sportChips(allSports)}
@@ -739,7 +757,7 @@ function viewHQ() {
     ["Scout", "#5CC8FF", m ? `Read ${m.lastSummary?.games ?? 0} games across ${(m.lastSummary?.sports || []).map(sportLabel).join(", ") || "—"}.` : "Waiting for the first run."],
     ["Quant", "#8F80FF", m ? `${Object.values(m.archive || {}).reduce((a, b) => a + b, 0).toLocaleString()} verified finals; ${Object.values(m.blend || {}).reduce((a, b) => a + b.teams, 0)} teams rated.` : "—"],
     ["Simulator", "#FFB547", `${games().filter((g) => g.pred).length} games × 10,000 sims on this phone.`],
-    ["Grader", "#45E0AE", m ? `${state.ledger.filter((r) => r.status === "graded").length} picks graded · ${state.ledger.filter((r) => r.clv).length} checked vs the close.` : "—"],
+    ["Grader", "#45E0AE", isOwner && m ? `${state.ledger.filter((r) => r.status === "graded").length} picks graded · ${state.ledger.filter((r) => r.clv).length} checked vs the close.` : "Grades every pick after the final and checks it against the closing line."],
     ["Coach", "#FF6F61", `${Object.keys(m?.lanes || {}).length} lanes calibrated; struggling ones are capped at Warm.`],
   ];
   return `<canvas id="hq-canvas" aria-label="EdgeBot operations floor, 3D"></canvas>
@@ -781,7 +799,7 @@ function openSlip() {
       <div class="card" style="padding:4px 14px">${L.map((x) => `<div class="leg"><img src="${esc(x.head)}" alt="" onerror="this.style.visibility='hidden'"><div style="min-width:0"><b>${esc(x.name)}</b><small>${x.side === "higher" ? "▲ Higher" : "▼ Lower"} ${x.line} ${esc(x.label)}</small></div><span class="num good">${pct(x.p)}</span><button class="x" data-slip="${esc(x.id)}" aria-label="Remove">✕</button></div>`).join("") || `<p class="note">Your slip is empty.</p>`}</div>
       ${n >= 2 && mult ? `<div class="payout"><div><span>All hit</span><b>${pct(all)}</b></div><div><span>Pays</span><b>${mult}×</b></div><div><span>Expected</span><b class="${ev >= 0 ? "good" : "bad"}">${sgn(ev * 100, 0)}%</b></div></div>
         <div class="gauge"><i style="width:${Math.min(100, Math.max(4, (all * mult / 2) * 100)).toFixed(0)}%"></i></div>
-        <p class="note">${ev >= 0 ? `By EdgeBot’s numbers this slip returns about ${sgn(ev * 100, 0)}% on average — it still loses ${pct(1 - all)} of the time.` : `By EdgeBot’s numbers this slip loses money on average. Swap in stronger picks or drop to fewer legs.`}${sameGame ? " Two picks from the same game can move together, so the real odds may differ." : ""} Check every line in the app before you enter.${(() => { const r = state.players?.record || { w: 0, l: 0 }; return r.w + r.l < 50 ? ` <b style="color:var(--fg)">Player picks are new</b> — ${r.w + r.l ? `${r.w}–${r.l} so far` : "none graded yet"} — so treat these numbers as unproven until the record builds.` : ""; })()}</p>` : ""}
+        <p class="note">${ev >= 0 ? `By EdgeBot’s numbers this slip returns about ${sgn(ev * 100, 0)}% on average — it still loses ${pct(1 - all)} of the time.` : `By EdgeBot’s numbers this slip loses money on average. Swap in stronger picks or drop to fewer legs.`}${sameGame ? " Two picks from the same game can move together, so the real odds may differ." : ""} Check every line in the app before you enter.${(() => { const r = state.players?.record || { w: 0, l: 0 }; return r.w + r.l < 50 ? ` <b style="color:var(--fg)">Player picks are new</b>${isOwner ? ` — ${r.w + r.l ? `${r.w}–${r.l} so far` : "none graded yet"} —` : ""} so treat these numbers as unproven.` : ""; })()}</p>` : ""}
       <div class="actions"><button class="btn" data-clearslip="1">Clear slip</button><button class="btn primary" data-copyslip="1">Copy picks</button></div>
     </div></div></div>`;
   document.body.style.overflow = "hidden";
@@ -910,7 +928,7 @@ async function openPlayer(sp, id) {
           ${p.cur ? `<tr><td>This season</td><td>${p.cur.gp}</td>${A(p.cur)}</tr>` : ""}${p.prev ? `<tr><td>Last season</td><td>${p.prev.gp}</td>${A(p.prev)}</tr>` : ""}</tbody></table></div>
         <h2 class="sec"><span>Game log</span><small>last ${p.log.length}</small></h2><div class="card scroll-x" style="padding:0 6px"><table class="ptable"><thead><tr><th>Game</th>${keys.map((k) => `<th>${STAT_NAME[k] || k}</th>`).join("")}</tr></thead><tbody>
           ${p.log.map((r) => `<tr><td>${/^\d{4}-W/.test(r.d) ? `Wk ${+r.d.slice(-2)}` : esc(new Date(r.d).toLocaleDateString([], { month: "short", day: "numeric" }))} <span style="color:var(--dim)">${esc(r.opp || "")}</span></td>${keys.map((k) => `<td>${r[k] ?? 0}</td>`).join("")}</tr>`).join("")}</tbody></table></div>` : ""}
-      ${hist.length ? `<h2 class="sec"><span>EdgeBot on ${esc(name.split(" ").slice(-1)[0])}</span><small>${hw}–${hist.length - hw}</small></h2><div class="card" style="padding:2px 14px">${hist.slice(-8).reverse().map((r) => `<div class="prow"><span>${r.side === "higher" ? "▲" : "▼"} ${r.line} ${esc(r.label)}</span><span class="num">${r.actual ?? ""}</span><span class="${r.result}">${r.result === "W" ? "WIN" : r.result === "L" ? "LOSS" : "PUSH"}</span></div>`).join("")}</div>` : ""}
+      ${hist.length && isOwner ? `<h2 class="sec"><span>EdgeBot on ${esc(name.split(" ").slice(-1)[0])}</span><small>${hw}–${hist.length - hw}</small></h2><div class="card" style="padding:2px 14px">${hist.slice(-8).reverse().map((r) => `<div class="prow"><span>${r.side === "higher" ? "▲" : "▼"} ${r.line} ${esc(r.label)}</span><span class="num">${r.actual ?? ""}</span><span class="${r.result}">${r.result === "W" ? "WIN" : r.result === "L" ? "LOSS" : "PUSH"}</span></div>`).join("")}</div>` : ""}
     </div></div></div>`, () => openPlayer(sp, id));
 }
 
@@ -968,7 +986,7 @@ function viewPlayers() {
   if (q) list = list.filter((x) => x.name.toLowerCase().includes(q) || x.team.toLowerCase() === q || x.label.toLowerCase().includes(q));
   return `<section class="hero"><div class="eyebrow">Player picks · pick’em</div>
       <h2>${picks.length ? `<em>${picks.length}</em> Higher / Lower picks` : "Player picks are loading"}</h2>
-      <div class="kpis"><div class="kpi"><b class="num">${rec.w + rec.l ? `${rec.w}–${rec.l}` : "—"}</b><span>${rec.w + rec.l ? `record · ${Math.round(100 * rec.w / (rec.w + rec.l))}%` : "record starts soon"}</span></div>
+      <div class="kpis">${isOwner ? `<div class="kpi"><b class="num">${rec.w + rec.l ? `${rec.w}–${rec.l}` : "—"}</b><span>${rec.w + rec.l ? `record · ${Math.round(100 * rec.w / (rec.w + rec.l))}%` : "record starts soon"}</span></div>` : `<div class="kpi"><b class="num">${new Set(P.props.map((x) => x.pid)).size}</b><span>players projected</span></div>`}
         <div class="kpi"><b class="num">58%</b><span>to win 2-pick (3×)</span></div><div class="kpi"><b class="num">55%</b><span>to win 3-pick (6×)</span></div></div></section>
     <p class="note">Lines are DraftKings’ player props. Underdog’s are usually within half a point — <b>check the line in the app</b>; if it’s moved past EdgeBot’s number, skip it.</p>
     <div class="seg" role="group" aria-label="Players view"><button data-pmode="picks" aria-pressed="${mode === "picks"}">Picks<b>${picks.length}</b></button><button data-pmode="all" aria-pressed="${mode === "all"}">All lines<b>${P.props.length}</b></button></div>
@@ -1105,6 +1123,7 @@ function render() {
   $("#status").textContent = m ? `Updated ${ago(m.lastRun)}` : state.slate ? "Waiting for first run" : "Connecting…";
   const fin = Object.values(m?.archive || {}).reduce((a, b) => a + b, 0);
   $("#today").textContent = m ? `${fin >= 1000 ? (fin / 1000).toFixed(1) + "K" : fin} finals learned` : "Sports picks that learn";
+  if (state.tab === "record" && !isOwner) state.tab = "picks";
   const views = { picks: viewPicks, games: viewGames, players: viewPlayers, record: viewRecord, hq: viewHQ };
   const hadCanvas = $("#hq-canvas");
   if (state.tab === "hq" && hadCanvas && hq.ready) {
@@ -1253,6 +1272,7 @@ const hq = (() => {
   return { mount, pause, update, get ready() { return ready && !!renderer; } };
 })();
 
+applyOwner();
 render();
 connect();
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
