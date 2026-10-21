@@ -277,6 +277,7 @@
     }
     // slate + new picks
     const slate = [], newPicks = [], existing = new Set(input.ledgerIds || []);
+    const pickedGames = new Set([...existing].map((id) => id.split("~")[0])); // one tracked pick per game: the first one saved stands
     for (const g of games) {
       const start = Date.parse(g.start); if (start < now - 36 * 3600e3) continue;
       const R = ratings[g.sport], pred = R ? predict(g, R) : null, pick = g.status === "pre" && pred ? bestPick(g, pred, model.lanes) : null;
@@ -284,7 +285,7 @@
         pick, why: pred ? why(g, pred, pick) : ["No line or ratings yet for this game."] });
       if (pick && start > now) {
         const id = `${g.id}~${pick.market}~${pick.side}`;
-        if (!existing.has(id)) newPicks.push({ id, gameId: g.id, sport: g.sport, start: g.start, matchup: `${g.away.abbr} @ ${g.home.abbr}`, home: g.home.abbr, away: g.away.abbr,
+        if (!existing.has(id) && !pickedGames.has(g.id)) newPicks.push({ id, gameId: g.id, sport: g.sport, start: g.start, matchup: `${g.away.abbr} @ ${g.home.abbr}`, home: g.home.abbr, away: g.away.abbr,
           market: pick.market, side: pick.side, label: pick.label, line: pick.line, price: pick.price, p: pick.p, pRaw: pick.pRaw, pMkt: pick.pMkt, edge: pick.edge, ev: pick.ev, tier: pick.tier,
           savedAt: input.now, model: MODEL_VERSION, status: "open" });
       }
