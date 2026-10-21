@@ -195,7 +195,11 @@
   const outCount = (inj) => (inj || []).filter((p) => p.status === "OUT" || p.status === "DOUBTFUL").length;
   function bestPick(g, pred, lanes, clvLanes = {}) {
     if (!pred) return null;
-    const cs = candidates(g, pred, lanes).map((c) => {
+    // Sanity guard: when EdgeBot's ratings disagree with the market by more than ~0.6 of a typical game's swing,
+    // the ratings are almost always missing information (rosters, injuries, level of competition) — no pick.
+    const S = SPORTS[g.sport], wildSide = pred.marketM != null && Math.abs(pred.ratingM - pred.marketM) > 0.6 * S.sdM,
+      wildTotal = pred.marketT != null && Math.abs(pred.ratingT - pred.marketT) > 0.6 * S.sdT;
+    const cs = candidates(g, pred, lanes).filter((c) => !(c.market === "total" ? wildTotal : wildSide)).map((c) => {
       let tier = tierOf(c), note = null;
       // Closing-line check: a lane whose picks keep losing to the close is capped at Lean, long before W/L would show it
       const cl = clvLanes[`${g.sport}|${c.market}`];
@@ -211,10 +215,11 @@
     if (pred.marketM != null) r.push(`Market line: ${pred.marketM >= 0 ? H : A} by ${f1(Math.abs(pred.marketM))}.`);
     if (pred.evidence >= 4) r.push(`EdgeBot ratings (${pred.homeRating.n}+${pred.awayRating.n} verified games): ${pred.ratingM >= 0 ? H : A} by ${f1(Math.abs(pred.ratingM))}, total ${f1(pred.ratingT)}.`);
     else r.push(`Ratings still building (${pred.evidence} verified games for the thinner team; 4+ needed), so the market sets this projection.`);
-    r.push(`Blend: ${Math.round(pred.wr * 100)}% EdgeBot ratings, ${Math.round((1 - pred.wr) * 100)}% market. ${(R0 => R0)(pred.blendN) >= 15 ? `Set from ${pred.blendN} ${S.label} finals scored against the closing line.` : `Starting weight until 15 ${S.label} finals are scored against the closing line (${pred.blendN || 0} so far).`}`);
+    r.push(`Blend: ${Math.round(pred.wr * 100)}% EdgeBot ratings, ${Math.round((1 - pred.wr) * 100)}% market. ${pred.blendN >= 30 ? `Learned from ${pred.blendN} ${S.label} finals scored against the closing line.` : `Starting weight until 30 ${S.label} finals are scored against the closing line (${pred.blendN || 0} so far).`}`);
     if (pred.restAdj) r.push(`Back-to-back adjustment on EdgeBot's ratings: ${pred.restAdj > 0 ? "+" : ""}${pred.restAdj} for ${H} (rest days ${H} ${g.restDays.home}, ${A} ${g.restDays.away}).`);
     for (const n of pred.notes || []) r.push(n);
     for (const side of ["away", "home"]) { const inj = (g.injuries || {})[side]; if (inj && inj.length) r.push(`${g[side].abbr} injuries: ${inj.slice(0, 4).map((p) => `${p.name} (${p.status.toLowerCase()})`).join(", ")}${inj.length > 4 ? ` +${inj.length - 4} more` : ""}.`); }
+    if (!pick && pred.marketM != null && Math.abs(pred.ratingM - pred.marketM) > 0.6 * S.sdM) r.push(`No pick: EdgeBot's ratings and the market disagree by ${Math.abs(pred.ratingM - pred.marketM).toFixed(1)} — too far to trust; the ratings are probably missing something.`);
     if (pick) r.push(`${pick.label}: ${Math.round(pick.p * 100)}% vs ${Math.round(pick.pMkt * 100)}% priced in (fair odds ${pick.fair > 0 ? "+" : ""}${pick.fair}).`);
     if (pick && pick.note) r.push(pick.note);
     return r;
