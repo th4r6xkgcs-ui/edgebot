@@ -4,6 +4,7 @@ import fs from "node:fs"; import path from "node:path"; import { createRequire }
 const require = createRequire(import.meta.url);
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const E = require(path.join(ROOT, "engine.js"));
+import * as PL from "./players.mjs";
 const DATA = path.join(ROOT, "data");
 const now = new Date(process.env.EDGEBOT_NOW || Date.now()), NOW = now.getTime();
 const readJson = (f, d) => { try { return JSON.parse(fs.readFileSync(path.join(DATA, f), "utf8")); } catch { return d; } };
@@ -246,7 +247,7 @@ async function main() {
     for (const r of nv) {
       const h = NFLVERSE_ABBR[r.home_team] || r.home_team, a = NFLVERSE_ABBR[r.away_team] || r.away_team, id = r.espn ? `NFL:${r.espn}` : `NFL:nv-${r.game_id}`;
       const rest = { home: num(r.home_rest), away: num(r.away_rest) };
-      nflMeta.set(id, { rest, stadium: r.stadium_id, roof: r.roof, neutral: r.location === "Neutral" });
+      nflMeta.set(id, { rest, stadium: r.stadium_id, roof: r.roof, neutral: r.location === "Neutral", nvId: r.game_id, season: +r.season, week: +r.week });
       if (r.result !== "" && r.home_score !== "" && r.away_score !== "")
         keep.push({ id, d: new Date(`${r.gameday}T${(r.gametime || "13:00")}:00-05:00`).toISOString(), h, a, hs: +r.home_score, as: +r.away_score,
           sp: r.spread_line !== "" ? -(+r.spread_line) : null, tot: r.total_line !== "" ? +r.total_line : null, rest, n: r.location === "Neutral" ? 1 : 0 });
@@ -379,13 +380,86 @@ async function main() {
   writeJson("state/history.json", history); writeJson("debug/odds-samples.json", oddsSamples);
   writeJson("state/model.json", out.model); writeJson("state/fetched.json", fetched); writeJson("ledger.json", ledger); writeJson("runs.json", runs);
   out.model.tuned = tuned;
+  const players = await playersCycle({ games, archive, ratings, injuryBooks, nflMeta });
   out.model.power = Object.fromEntries(Object.entries(ratings).map(([sp, R]) => [sp, Object.entries(R.teams).filter(([, t]) => t.n >= 3)
     .map(([abbr, t]) => ({ abbr, r: +t.r.toFixed(2), o: +t.o.toFixed(2), d: +t.d.toFixed(2), n: t.n })).sort((a, b) => b.r - a.r).slice(0, sp === "NCAAF" ? 60 : 40)]));
   const teamsOut = {}; for (const sp of Object.keys(out.model.power)) for (const t of out.model.power[sp]) if (teams[`${sp}|${t.abbr}`]) teamsOut[`${sp}|${t.abbr}`] = teams[`${sp}|${t.abbr}`];
   for (const r of ledger.slice(-800)) for (const a of [r.home, r.away]) if (a && teams[`${r.sport}|${a}`]) teamsOut[`${r.sport}|${a}`] = teams[`${r.sport}|${a}`];
-  writeJson("app.json", { at: now.toISOString(), teams: teamsOut, slate: { at: now.toISOString(), games: out.slate }, model: out.model,
+  writeJson("app.json", { at: now.toISOString(), players, teams: teamsOut, slate: { at: now.toISOString(), games: out.slate }, model: out.model,
     ledger: [...ledger].sort((a, b) => (b.savedAt || "").localeCompare(a.savedAt || "")).slice(0, 800), runs: runs.slice(0, 15) });
   console.log(log.join("\n")); if (failures.length) console.log("Failures:\n" + failures.slice(0, 10).join("\n"));
   if (requests && failed === requests) process.exit(1); // every request failed: mark the run red
 }
+/* ------------------------------ players ------------------------------ */
+async function playersCycle({ games, archive, ratings, injuryBooks, nflMeta }) {
+  const t0 = Date.now(), log = [];
+  // 1) NBA box-score archive (this season first, then last season, newest first; capped per run)
+  const box = readJson("state/players/NBA.json", []), done = new Set(readJson("state/players/NBA-done.json", []));
+  const todo = [...(archive.NBA || [])].filter((x) => !done.has(x.id)).sort((a, b) => (a.d >= SEASON_START.NBA) - (b.d >= SEASON_START.NBA) || (a.d < b.d ? 1 : -1))
+    .sort((a, b) => (b.d >= SEASON_START.NBA) - (a.d >= SEASON_START.NBA)).slice(0, 80);
+  for (let i = 0; i < todo.length; i += 6) await Promise.all(todo.slice(i, i + 6).map(async (x) => {
+    const d = await getJson(`https://site.api.espn.com/apis/site/v2/sports/basketball/nba/summary?event=${x.id.split(":")[1]}`);
+    if (!d?.boxscore) return; box.push(...PL.parseNbaBox(d, x.id, x.d)); done.add(x.id);
+  }));
+  for (const r of box) r.cur = r.d >= SEASON_START.NBA ? 1 : 0;
+  writeJson("state/players/NBA.json", box); writeJson("state/players/NBA-done.json", [...done]);
+  log.push(`${done.size} NBA box scores archived (+${todo.length} this run).`);
+  // 2) NFL weekly player stats (nflverse) + ESPN↔nflverse player ids
+  let nfl = [], nflIdByEspn = new Map();
+  const [c25, c26, pl] = await Promise.all([
+    getText("https://github.com/nflverse/nflverse-data/releases/download/stats_player/stats_player_week_2025.csv"),
+    getText("https://github.com/nflverse/nflverse-data/releases/download/stats_player/stats_player_week_2026.csv"),
+    getText("https://github.com/nflverse/nflverse-data/releases/download/players/players.csv")]);
+  if (c25 || c26) { nfl = PL.nflRowsFromCsv([...(c25 ? parseCsv(c25) : []), ...(c26 ? parseCsv(c26) : [])]); for (const r of nfl) r.cur = r.season >= 2026 ? 1 : 0; }
+  if (pl) for (const r of parseCsv(pl)) if (r.espn_id && r.gsis_id) nflIdByEspn.set(String(r.espn_id).replace(/\.0$/, ""), r.gsis_id);
+  log.push(`${nfl.length} NFL player-weeks loaded; ${nflIdByEspn.size} player ids mapped.`);
+  // history per player, oldest → newest
+  const hist = { NBA: new Map(), NFL: new Map() };
+  for (const r of [...box].sort((a, b) => (a.d < b.d ? -1 : 1))) { const L = hist.NBA.get(r.id) || []; L.push(r); hist.NBA.set(r.id, L); }
+  for (const r of [...nfl].sort((a, b) => a.season - b.season || a.week - b.week)) { const L = hist.NFL.get(r.id) || []; L.push(r); hist.NFL.set(r.id, L); }
+  // 3) prop lines for upcoming games → projections → picks
+  const ledger = readJson("playerLedger.json", []), have = new Set(ledger.map((r) => r.id)), props = [], unmatched = new Set();
+  const upcoming = [...games.values()].filter((g) => g.status === "pre" && ((g.sport === "NBA" && Date.parse(g.start) < NOW + 36 * 3600e3) || (g.sport === "NFL" && Date.parse(g.start) < NOW + 5 * 864e5)) && Date.parse(g.start) > NOW);
+  const R = ratings.NBA, half = R ? R.lg.avgT / 2 : 114;
+  for (let i = 0; i < upcoming.length; i += 4) await Promise.all(upcoming.slice(i, i + 4).map(async (g) => {
+    const { lines, unmatched: um } = await PL.propLines(getJson, g.sport, PATHS[g.sport], g.id.split(":")[1]); um.forEach((u) => unmatched.add(`${g.sport}: ${u}`));
+    const inj = injuryBooks[g.sport] || {}, injured = new Map([...(inj[g.home.name] || []), ...(inj[g.away.name] || [])].map((p) => [p.name, p.status]));
+    for (const L of lines) {
+      const pid = g.sport === "NFL" ? nflIdByEspn.get(L.pid) : L.pid, H = pid ? hist[g.sport].get(pid) : null; if (!H || !H.length) continue;
+      const lastRow = H[H.length - 1], team = lastRow.t, side = team === g.home.abbr ? "home" : team === g.away.abbr ? "away" : null; if (!side) continue;
+      const opp = side === "home" ? g.away.abbr : g.home.abbr, status = injured.get(lastRow.n);
+      if (status === "OUT" || status === "DOUBTFUL") continue;
+      const oppT = g.sport === "NBA" && R ? R.teams[opp] : null, oppFactor = oppT ? 1 + oppT.d / half : 1;
+      const proj = PL.project(g.sport, H, L.stat, { oppFactor }); if (!proj) continue;
+      const pH = PL.pHigher(proj, L.line), pickSide = pH >= 0.5 ? "higher" : "lower", p = Math.max(pH, 1 - pH);
+      const tier = proj.nCur >= 1 || g.sport === "NBA" ? PL.propTier(p) : null;
+      const row = { id: `${g.id}~${pid}~${L.stat}`, gameId: g.id, sport: g.sport, start: g.start, pid, espnId: L.pid, name: lastRow.n, pos: lastRow.pos, team, opp, home: side === "home",
+        head: g.sport === "NBA" ? `https://a.espncdn.com/i/headshots/nba/players/full/${L.pid}.png` : lastRow.head || `https://a.espncdn.com/i/headshots/nfl/players/full/${L.pid}.png`,
+        stat: L.stat, label: PL.STAT_LABEL[L.stat] || L.stat, line: L.line, proj: +proj.mean.toFixed(2), sd: +proj.sd.toFixed(2), pHigher: +pH.toFixed(4), side: pickSide, p: +p.toFixed(4), tier,
+        games: proj.n, gamesThisSeason: proj.nCur, minutes: proj.min ? +proj.min.toFixed(1) : null, last: proj.last, status: status || null, oppFactor: +oppFactor.toFixed(3) };
+      props.push(row);
+      if (tier && !have.has(row.id) && (!status || status === "DAY_TO_DAY")) { ledger.push({ ...row, status: "open", savedAt: now.toISOString() }); have.add(row.id); }
+    }
+  }));
+  // 4) grade player picks from box scores / nflverse once the game is final
+  const nbaByGame = new Map(); for (const r of box) { const k = `${r.g}|${r.id}`; nbaByGame.set(k, r); }
+  const nflByKey = new Map(); for (const r of nfl) nflByKey.set(`${r.g}|${r.id}`, r);
+  let graded = 0;
+  for (const r of ledger) {
+    if (r.status !== "open") continue;
+    const g = games.get(r.gameId);
+    let row = null;
+    if (r.sport === "NBA") row = nbaByGame.get(`${r.gameId}|${r.pid}`);
+    else { const m = nflMeta.get(r.gameId); if (m) row = nflByKey.get(`${m.nvId}|${r.pid}`); }
+    if (row) { const res = PL.gradeProp(r, row); if (res) { Object.assign(r, { status: "graded", result: res, actual: PL.valueOf(row, r.stat), gradedAt: now.toISOString() }); graded++; } }
+    else if ((g && g.status === "post" && Date.parse(r.start) < NOW - 36 * 3600e3) || Date.parse(r.start) < NOW - 9 * 864e5) Object.assign(r, { status: "void", note: "Player didn’t record stats (DNP) or no box score." });
+  }
+  writeJson("playerLedger.json", ledger);
+  writeJson("debug/prop-types-unmatched.json", [...unmatched]);
+  const G = ledger.filter((r) => r.status === "graded"), W = G.filter((r) => r.result === "W").length, Lx = G.filter((r) => r.result === "L").length;
+  log.push(`${props.length} player lines projected, ${ledger.filter((r) => r.status === "open").length} open player picks, ${graded} graded this run (${Date.now() - t0} ms).`);
+  console.log(log.join("\n"));
+  return { at: now.toISOString(), props: props.sort((a, b) => b.p - a.p).slice(0, 700), ledger: ledger.slice(-500), record: { w: W, l: Lx, p: G.length - W - Lx }, log };
+}
+
 if (process.argv[1] && import.meta.url.endsWith(path.basename(process.argv[1]))) main();
