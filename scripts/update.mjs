@@ -474,9 +474,12 @@ async function playersCycle({ games, archive, ratings, injuryBooks, nflMeta }) {
         stat: L.stat, label: PL.STAT_LABEL[L.stat] || L.stat, line: L.line, proj: +proj.mean.toFixed(2), own: +own.mean.toFixed(2), wild, mv: 3, sd: +proj.sd.toFixed(2), pHigher: +pH.toFixed(4), side: pickSide, p: +p.toFixed(4), tier,
         games: proj.n, gamesThisSeason: proj.nCur, minutes: proj.min ? +proj.min.toFixed(1) : null, last: proj.last, status: status || null, oppFactor: +oppFactor.toFixed(3) };
       props.push(row);
-      if (tier && !have.has(row.id) && (!status || status === "DAY_TO_DAY")) { ledger.push({ ...row, status: "open", savedAt: now.toISOString() }); have.add(row.id); }
     }
   }));
+  // one pick per player per game: points, PRA, P+R etc. move together, so only the strongest stays a pick
+  const bestFor = new Map(); for (const r of props) if (r.tier) { const k = `${r.gameId}|${r.pid}`, b = bestFor.get(k); if (!b || r.p > b.p) bestFor.set(k, r); }
+  for (const r of props) if (r.tier && bestFor.get(`${r.gameId}|${r.pid}`) !== r) { r.tier = null; r.note = "Another line for this player is stronger"; }
+  for (const r of props) if (r.tier && !have.has(r.id) && !ledger.some((x) => x.gameId === r.gameId && x.pid === r.pid && x.status !== "void") && (!r.status || r.status === "DAY_TO_DAY")) { ledger.push({ ...r, status: "open", savedAt: now.toISOString() }); have.add(r.id); }
   // 4) grade player picks from box scores / nflverse once the game is final
   const nbaByGame = new Map(); for (const r of box) { const k = `${r.g}|${r.id}`; nbaByGame.set(k, r); }
   const nflByKey = new Map(); for (const r of nfl) nflByKey.set(`${r.g}|${r.id}`, r);
