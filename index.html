@@ -216,6 +216,34 @@ table.lanes th.n{text-align:right}
 .disclaimer{font-size:12px;color:var(--dim);text-align:center;margin:28px 8px 8px}
 .skel{height:150px;border-radius:var(--r-lg);margin-bottom:12px;background:linear-gradient(90deg,var(--panel) 0%,var(--panel2) 50%,var(--panel) 100%);background-size:200% 100%;animation:sh 1.3s linear infinite}
 @keyframes sh{to{background-position:-200% 0}}
+.move{display:inline-flex;align-items:center;gap:6px;margin:10px 16px 0 18px;font:600 12px var(--mono);color:#C9D1E4;padding:5px 10px;border-radius:999px;background:rgba(92,200,255,.08);border:1px solid rgba(92,200,255,.25)}
+.move.with{background:rgba(69,224,174,.08);border-color:rgba(69,224,174,.3);color:var(--mint)}
+.move.against{background:rgba(255,111,97,.08);border-color:rgba(255,111,97,.3);color:var(--coral)}
+.livebadge{display:inline-flex;align-items:center;gap:5px;font:700 10.5px var(--mono);color:var(--coral);letter-spacing:.06em}
+.livebadge::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--coral);animation:blink 1.2s ease-in-out infinite}
+@keyframes blink{50%{opacity:.25}}
+.power{display:grid;grid-template-columns:28px minmax(0,1fr) 90px 48px;gap:10px;align-items:center;padding:10px 14px;border-top:1px solid var(--line)}
+.power:first-child{border-top:0}
+.power .rk{font:700 13px var(--mono);color:var(--dim);text-align:right}
+.power .nm{display:flex;align-items:center;gap:9px;min-width:0;font-weight:600}
+.power .nm span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.power .nm small{color:var(--dim);font-weight:500;font-size:11.5px;margin-left:4px}
+.power .bar3{height:8px;border-radius:5px;background:var(--panel2);position:relative;overflow:hidden}
+.power .bar3 i{position:absolute;top:0;bottom:0}
+.power .val{font:700 13px var(--mono);text-align:right}
+.actions{display:flex;gap:8px;margin-top:12px}
+.btn{flex:1;border:1px solid var(--line2);background:var(--panel);border-radius:14px;min-height:46px;font-weight:700;font-size:14px;display:inline-flex;align-items:center;justify-content:center;gap:8px}
+.btn.primary{background:var(--amber);color:var(--bg);border-color:var(--amber)}
+.tip{display:flex;gap:12px;align-items:center;padding:12px 12px 12px 14px;border-radius:var(--r-md);border:1px solid rgba(92,200,255,.35);background:linear-gradient(135deg,rgba(92,200,255,.14),rgba(92,200,255,.03));margin-bottom:12px}
+.tip img{width:40px;height:40px;border-radius:10px;flex:none}
+.tip div{flex:1;min-width:0;font-size:13.5px;line-height:1.35}
+.tip button{border:0;background:transparent;width:40px;height:40px;color:var(--muted)}
+details.how{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-md);padding:2px 14px;margin-bottom:10px}
+details.how summary{cursor:pointer;padding:12px 0;font-weight:700;list-style:none;display:flex;justify-content:space-between}
+details.how summary::after{content:"+";color:var(--muted);font-weight:500}
+details.how[open] summary::after{content:"−"}
+details.how p,details.how li{font-size:13.5px;color:#C9D1E4;margin:6px 0}
+details.how ol{padding-left:18px;margin:0 0 12px}
 @media (min-width:700px){.tiles{grid-template-columns:repeat(4,minmax(0,1fr))}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
@@ -267,7 +295,10 @@ const SPORT_DOT = { NBA: "#FF8A3D", NFL: "#45E0AE", NCAAF: "#8F80FF", NHL: "#5CC
 
 /* team marks: logo when ESPN has one, otherwise a monogram in the team colour */
 const teamIndex = new Map();
-function indexTeams() { for (const g of games()) for (const s of ["home", "away"]) teamIndex.set(`${g.sport}|${g[s].abbr}`, g[s]); }
+function indexTeams() {
+  for (const [k, t] of Object.entries(state.teams || {})) teamIndex.set(k, { abbr: k.split("|")[1], ...t });
+  for (const g of games()) for (const s of ["home", "away"]) teamIndex.set(`${g.sport}|${g[s].abbr}`, g[s]);
+}
 function teamColor(t, fallback = "#5E6A86") { const c = (t?.color || "").replace("#", ""); return /^[0-9a-f]{6}$/i.test(c) ? "#" + c : fallback; }
 /** Team colour readable on the dark canvas (very dark brand colours fall back to their alternate). */
 function liveColor(t) {
@@ -290,7 +321,7 @@ async function connect() {
       if (!r.ok) r = await fetch("data/app.json?t=" + Date.now(), { cache: "no-store" });
       if (!r.ok) throw new Error("The first update hasn’t finished yet. Check back in a few minutes.");
       const d = await r.json();
-      state.slate = d.slate; state.model = d.model; state.ledger = d.ledger || []; state.runs = d.runs || []; state.error = "";
+      state.slate = d.slate; state.model = d.model; state.ledger = d.ledger || []; state.runs = d.runs || []; state.teams = d.teams || {}; state.error = "";
       simCache.clear(); indexTeams(); render(); if (hq.ready) hq.update();
     } catch (e) { state.error = navigator.onLine === false ? "You’re offline — showing the last loaded picks." : e.message; if (!state.slate) render(); }
   };
@@ -331,6 +362,26 @@ function contextChips(g) {
   return c;
 }
 
+/* ------------------------------ line movement ------------------------------ */
+const implied = (ml) => ml == null ? null : 1 / E.toDec(ml);
+function lineMove(g, market) {
+  const H = g.lineHist; if (!H || H.length < 2) return null;
+  const a = H[0], b = H[H.length - 1];
+  if ((market === "spread" || !market) && a.sp != null && b.sp != null && a.sp !== b.sp) return { kind: "spread", from: a.sp, to: b.sp, text: `${g.home.abbr} ${a.sp > 0 ? "+" : ""}${a.sp} → ${b.sp > 0 ? "+" : ""}${b.sp}` };
+  if (market === "total" && a.tot != null && b.tot != null && a.tot !== b.tot) return { kind: "total", from: a.tot, to: b.tot, text: `O/U ${a.tot} → ${b.tot}` };
+  if ((market === "moneyline" || !market) && a.mh != null && b.mh != null && a.mh !== b.mh) return { kind: "ml", from: a.mh, to: b.mh, text: `${g.home.abbr} ${am(a.mh)} → ${am(b.mh)}` };
+  return null;
+}
+/** Did the line move toward EdgeBot's pick (good sign) or away from it? */
+function moveDirection(g, p) {
+  const m = lineMove(g, p.market); if (!m) return null;
+  let toward = null;
+  if (m.kind === "spread") toward = p.side === "home" ? m.to < m.from : m.to > m.from;           // market now likes our side more
+  if (m.kind === "total") toward = p.side === "over" ? m.to > m.from : m.to < m.from;
+  if (m.kind === "ml") { const d = implied(m.to) - implied(m.from); toward = p.side === "home" ? d > 0 : d < 0; }
+  return { ...m, toward };
+}
+
 /* ------------------------------ pieces ------------------------------ */
 function ring(p, pMkt, color) {
   const R = 32, C = 2 * Math.PI * R, a = Math.max(0, Math.min(1, p)), m = Math.max(0, Math.min(1, pMkt));
@@ -353,7 +404,8 @@ function pickCard({ g, p, id }, feat) {
       ${ring(p.p, p.pMkt, ringColor)}
     </button>
     ${why ? `<p class="reason">${esc(why)}</p>` : ""}
-    <div class="stats"><div><span>Edge</span><b class="good">${sgn(p.edge * 100)}%</b></div><div><span>EV</span><b>${sgn(p.ev * 100)}%</b></div><div><span>Fair</span><b>${am(p.fair)}</b></div><div><span>Price</span><b>${am(p.price)}</b></div></div>
+    ${(() => { const m = moveDirection(g, p); return m ? `<span class="move ${m.toward ? "with" : "against"}" title="Line movement since EdgeBot first saw it">${m.toward ? "▲" : "▼"} ${esc(m.text)} · ${m.toward ? "moving our way" : "moving against"}</span>` : ""; })()}
+    <div class="stats"><div><span>Edge</span><b class="good">${sgn(p.edge * 100)}%</b></div><div><span>EV</span><b>${sgn(p.ev * 100)}%</b></div><div><span>Fair</span><b>${am(p.fair)}</b></div><div><span>Stake</span><b>${(p.stake ?? 0.25).toFixed(2).replace(/0$/, "")}u</b></div></div>
   </article>`;
 }
 function winBar(g, aP, hP, dP = 0) {
@@ -361,11 +413,11 @@ function winBar(g, aP, hP, dP = 0) {
   return `<div class="bar2"><i style="width:${(aP * 100).toFixed(1)}%;background:${ca}"></i>${dP ? `<i style="width:${(dP * 100).toFixed(1)}%;background:#3A4766"></i>` : ""}<i style="width:${(hP * 100).toFixed(1)}%;background:${ch}"></i></div>`;
 }
 function gameRow(g) {
-  const p = g.pred, fin = g.status === "post";
+  const p = g.pred, fin = g.status === "post", live = g.status === "in";
   const line = g.spread != null ? `${g.spread < 0 ? g.home.abbr : g.away.abbr} −${Math.abs(g.spread)}` : g.mlHome != null ? `ML ${am(g.mlAway)} / ${am(g.mlHome)}` : "No line yet";
-  const right = fin ? `<div class="wp" style="align-items:flex-end;color:var(--muted)">Final</div>`
+  const right = live ? `<div class="wp" style="align-items:flex-end"><span class="livebadge">LIVE</span><span style="color:var(--muted);font-weight:500">${esc(g.detail || "")}</span></div>` : fin ? `<div class="wp" style="align-items:flex-end;color:var(--muted)">Final</div>`
     : p ? `<div class="wp"><div class="lbl"><span>${pct(p.pAway)}</span><span>${pct(p.pHome)}</span></div>${winBar(g, p.pAway, p.pHome, p.pDraw)}</div>` : `<div class="wp" style="align-items:flex-end">—</div>`;
-  const sc = (side) => fin ? `<b class="sc">${g[side].score}</b>` : "";
+  const sc = (side) => fin || live ? `<b class="sc">${g[side].score ?? 0}</b>` : "";
   return `<button class="game" data-game="${esc(g.id)}"><span class="side">
       <span class="team ${fin && g.away.score > g.home.score ? "on" : ""}" style="color:var(--fg)">${mark(g.away, g.sport)}<span>${esc(g.away.short || g.away.name)}</span>${sc("away")}</span>
       <span class="team ${fin && g.home.score > g.away.score ? "on" : ""}" style="color:var(--fg)">${mark(g.home, g.sport)}<span>${esc(g.home.short || g.home.name)}</span>${sc("home")}</span>
@@ -397,7 +449,7 @@ function viewPicks() {
   const best = picks.filter((x) => x.p.tier !== "Lean").slice(0, 3), rest = picks.filter((x) => !best.includes(x));
   const R = record(), clv = state.ledger.filter((r) => r.clv), beat = clv.filter((r) => (r.clv.pts ?? 0) > 0 || (r.clv.prob ?? 0) > 0.002).length;
   const total = currentPicks().length, strong = currentPicks().filter((x) => x.p.tier !== "Lean").length;
-  return `<section class="hero">
+  return `${installTip()}<section class="hero">
       <div class="eyebrow">${esc(new Date().toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" }))}</div>
       <h2>${total ? `<em>${total}</em> picks on the board${strong ? `, ${strong} with real value` : ""}` : "No edges on the board yet"}</h2>
       <div class="kpis">
@@ -411,21 +463,45 @@ function viewPicks() {
     ${rest.length ? `<h2 class="sec"><span>${best.length ? "More picks" : "Picks"}</span><small>${rest.length} · sorted by expected value</small></h2>${rest.map((x) => pickCard(x)).join("")}` : ""}
     ${!picks.length ? `<div class="card empty"><strong>${state.sport === "SAVED" ? "No saved picks" : "Nothing here yet"}</strong>${state.sport === "SAVED" ? "Tap ☆ on a pick to keep it here." : "EdgeBot only picks when its numbers disagree with the price. Try another day or sport — or check Games for every matchup."}</div>` : ""}`;
 }
+function installTip() {
+  const ios = /iPhone|iPad|iPod/.test(navigator.userAgent), standalone = navigator.standalone === true || matchMedia("(display-mode: standalone)").matches;
+  let seen = false; try { seen = localStorage.getItem("edgebot-tip") === "1"; } catch {}
+  if (!ios || standalone || seen) return "";
+  return `<aside class="tip" aria-label="Install EdgeBot"><img src="icons/icon-180.png" alt=""><div><b>Put EdgeBot on your Home Screen</b><br><span style="color:var(--muted)">Tap Share, then <b>Add to Home Screen</b>. Opens full-screen, works offline.</span></div><button data-tipclose="1" aria-label="Dismiss">✕</button></aside>`;
+}
 function viewGames() {
   if (!state.slate) return loadingOrError();
   const now = Date.now(), gs = games();
-  const groups = { upcoming: gs.filter((g) => g.status !== "post" && Date.parse(g.start) > now - 4 * 3600e3), finals: gs.filter((g) => g.status === "post").reverse() };
+  const groups = { upcoming: gs.filter((g) => g.status === "pre" && Date.parse(g.start) > now - 4 * 3600e3), live: gs.filter((g) => g.status === "in"), finals: gs.filter((g) => g.status === "post").reverse() };
+  if (state.day === "power") return viewPower(groups);
   let list = groups[state.day] || [];
   const sports = list.map((g) => g.sport);
   if (state.sport !== "ALL" && state.sport !== "SAVED") list = list.filter((g) => g.sport === state.sport);
   const days = []; for (const g of list) { const l = dayLabel(g.start); if (!days.length || days[days.length - 1][0] !== l) days.push([l, []]); days[days.length - 1][1].push(g); }
-  return `<div class="seg" role="group" aria-label="Which games">
-      <button data-day="upcoming" aria-pressed="${state.day === "upcoming"}">Upcoming<b>${groups.upcoming.length}</b></button>
-      <button data-day="finals" aria-pressed="${state.day === "finals"}">Finals<b>${groups.finals.length}</b></button></div>
+  return `${gamesSeg(groups)}
     ${sportChips(sports, "sport2")}
     ${days.length ? `<div class="card">${days.map(([l, gsx]) => `<div class="day-h">${esc(l)} · ${gsx.length}</div>${gsx.map(gameRow).join("")}`).join("")}</div>
       <p class="note">Bars show EdgeBot’s win chances. Tap a game for 10,000 simulations, the reasons, injuries, and to check your own line.</p>`
       : `<div class="card empty"><strong>No games here yet</strong>The next update adds schedules, lines and finals.</div>`}`;
+}
+function gamesSeg(groups) {
+  return `<div class="seg" role="group" aria-label="Which games">
+      <button data-day="upcoming" aria-pressed="${state.day === "upcoming"}">Upcoming<b>${groups.upcoming.length}</b></button>
+      ${groups.live.length ? `<button data-day="live" aria-pressed="${state.day === "live"}"><span class="livebadge" style="color:inherit">Live</span><b>${groups.live.length}</b></button>` : ""}
+      <button data-day="finals" aria-pressed="${state.day === "finals"}">Finals<b>${groups.finals.length}</b></button>
+      <button data-day="power" aria-pressed="${state.day === "power"}">Power</button></div>`;
+}
+function viewPower(groups) {
+  const P = state.model?.power || {}, sports = Object.keys(P).filter((s) => P[s].length);
+  if (!sports.length) return gamesSeg(groups) + `<div class="card empty"><strong>Power ratings are building</strong>They appear once teams have 3+ verified games.</div>`;
+  const sp = sports.includes(state.sport) ? state.sport : sports[0], list = P[sp], max = Math.max(...list.map((t) => Math.abs(t.r)), 1), S = SP[sp];
+  return `${gamesSeg(groups)}<div class="chips" role="group" aria-label="League">${sports.map((s) => `<button class="chip" data-sport2="${s}" aria-pressed="${s === sp}"><i style="width:7px;height:7px;border-radius:50%;background:${SPORT_DOT[s]}"></i>${esc(sportLabel(s))}</button>`).join("")}</div>
+    <h2 class="sec"><span>${esc(sportLabel(sp))} power ratings</span><small>${S.dist === "normal" ? "points" : "goals/runs"} vs an average team, neutral field</small></h2>
+    <div class="card">${list.map((t, i) => { const tm = teamIndex.get(`${sp}|${t.abbr}`) || { abbr: t.abbr }, w = (Math.abs(t.r) / max) * 50;
+      return `<div class="power"><span class="rk">${i + 1}</span><span class="nm">${mark(tm, sp)}<span>${esc(tm.short || tm.name || t.abbr)}<small>${esc(tm.record || `${t.n} gp`)}</small></span></span>
+        <span class="bar3"><i style="left:${t.r >= 0 ? 50 : 50 - w}%;width:${w}%;background:${t.r >= 0 ? "var(--mint)" : "var(--coral)"}"></i><i style="left:50%;width:1px;background:var(--line2)"></i></span>
+        <span class="val ${t.r >= 0 ? "good" : "bad"}">${sgn(t.r, S.dist === "normal" ? 1 : 2)}</span></div>`; }).join("")}</div>
+    <p class="note">Built from every verified final this season (last season carried in at 70%). Games vs these ratings are blended with the betting line — see Record → What EdgeBot has learned.</p>`;
 }
 function spark(rows) {
   if (rows.length < 2) return `<p class="note" style="padding:8px 2px">The units chart appears after a few graded picks.</p>`;
@@ -477,6 +553,15 @@ function viewHQ() {
   ];
   return `<canvas id="hq-canvas" aria-label="EdgeBot operations floor, 3D"></canvas>
     <p class="note">Drag to orbit · tap a desk to open that sport’s picks · the core spins faster with more open picks (${open} now).</p>
+    <h2 class="sec"><span>How EdgeBot works</span></h2>
+    <details class="how"><summary>From scoreboard to pick, every 30–60 minutes</summary><ol>
+      <li><b>Scout</b> reads ESPN scoreboards, odds and injury reports, nflverse NFL history and wind forecasts.</li>
+      <li><b>Quant</b> rebuilds team ratings from every verified final (last season carried in at 70%).</li>
+      <li>Ratings are blended with the betting line. The weight is learned from which would have predicted past finals best against the closing line — the NFL learns ≈0%.</li>
+      <li>Only tested situational effects are added (NFL wind 15+ mph, away rest edge 3+ days).</li>
+      <li>A pick needs a real price edge; the first pick on a game is saved before kickoff and never changed.</li>
+      <li><b>Grader</b> scores it after the final and checks it against the closing line; <b>Coach</b> recalibrates each sport × market and caps lanes that lose to the close.</li></ol></details>
+    <details class="how"><summary>Tiers and stakes</summary><p><b>Strong</b> needs a proven lane (30+ graded picks, beating the market’s own forecast) and a 7%+ edge. <b>Value</b> needs a 4.5%+ edge. <b>Lean</b> is a smaller edge or a capped lane. Stakes are ¼ Kelly with 1u = 1% of a bankroll, capped at 2u — a guide, not advice.</p></details>
     <h2 class="sec"><span>The crew</span><small>${m ? "last run " + ago(m.lastRun) : ""}</small></h2>
     <div class="agents">${agents.map(([n, c, t]) => `<div class="agent"><b><i style="background:${c};color:${c}"></i>${n}</b><p>${esc(t)}</p></div>`).join("")}</div>
     <h2 class="sec"><span>Activity</span><small>${m?.runs ?? 0} runs</small></h2>
@@ -499,6 +584,29 @@ function marginChart(g, p) {
     <text x="${x0}" y="${H + 14}" fill="#8C98B4" font-size="11" text-anchor="middle" font-family="JetBrains Mono">tie</text>
     <text x="${W - 4}" y="${H + 14}" fill="#8C98B4" font-size="11" text-anchor="end" font-family="JetBrains Mono">${esc(g.home.abbr)} by ${hi}</text></svg>`;
 }
+function lineChart(g) {
+  const H = g.lineHist; if (!H || H.length < 2) return "";
+  const useSp = H.every((x) => x.sp != null) && new Set(H.map((x) => x.sp)).size > 1, useTot = !useSp && H.every((x) => x.tot != null) && new Set(H.map((x) => x.tot)).size > 1;
+  const val = (x) => useSp ? x.sp : useTot ? x.tot : (implied(x.mh) ?? 0.5) * 100, vals = H.map(val).filter((v) => v != null && isFinite(v)); if (vals.length < 2) return "";
+  const lab = useSp ? `${g.home.abbr} spread` : useTot ? "Total" : `${g.home.abbr} win % implied by the moneyline`;
+  const W = 340, Hh = 70, P = 8, t0 = Date.parse(H[0].t), t1 = Date.parse(H[H.length - 1].t), mn = Math.min(...vals), mx = Math.max(...vals);
+  const x = (t) => P + ((Date.parse(t) - t0) / Math.max(1, t1 - t0)) * (W - 2 * P), y = (v) => Hh - P - ((v - mn) / ((mx - mn) || 1)) * (Hh - 2 * P);
+  const d = H.map((pt, i) => `${i ? "H" + x(pt.t).toFixed(1) + "V" : "M" + x(pt.t).toFixed(1) + ","}${y(val(pt)).toFixed(1)}`).join("");
+  const fmt = (v) => useSp ? (v > 0 ? "+" : "") + v : useTot ? String(v) : v.toFixed(0) + "%";
+  return `<h2 class="sec"><span>Line movement</span><small>${esc(lab)} · ${H.length} changes seen</small></h2>
+    <div class="card" style="padding:10px 12px 8px"><svg class="chart" viewBox="0 0 ${W} ${Hh + 16}" role="img" aria-label="${esc(lab)} moved from ${fmt(vals[0])} to ${fmt(vals[vals.length - 1])}">
+      <path d="${d}" fill="none" stroke="#5CC8FF" stroke-width="2.5" stroke-linejoin="round"/>
+      <circle cx="${x(H[0].t)}" cy="${y(vals[0])}" r="3.5" fill="#8C98B4"/><circle cx="${x(H[H.length - 1].t)}" cy="${y(vals[vals.length - 1])}" r="4.5" fill="#5CC8FF"/>
+      <text x="${P}" y="${Hh + 13}" fill="#8C98B4" font-size="11" font-family="JetBrains Mono">open ${esc(fmt(vals[0]))}</text>
+      <text x="${W - P}" y="${Hh + 13}" fill="#EEF1F8" font-size="11" text-anchor="end" font-family="JetBrains Mono">now ${esc(fmt(vals[vals.length - 1]))}</text></svg></div>`;
+}
+async function sharePick(g) {
+  const pk = g.pick, text = pk ? `EdgeBot pick: ${pk.label} ${am(pk.price)} (${g.away.abbr} @ ${g.home.abbr}, ${dayLabel(g.start)} ${timeOf(g.start)}) — EdgeBot ${pct(pk.p)} vs ${pct(pk.pMkt)} priced in. ${pk.tier}.`
+    : `${g.away.name} @ ${g.home.name} — EdgeBot: ${g.home.abbr} ${pct(g.pred?.pHome)} / ${g.away.abbr} ${pct(g.pred?.pAway)}.`;
+  try { if (navigator.share) { await navigator.share({ title: "EdgeBot", text, url: location.href.split("#")[0] }); return; } } catch (e) { if (e?.name === "AbortError") return; }
+  try { await navigator.clipboard.writeText(text + " " + location.href.split("#")[0]); toast("Copied to clipboard"); } catch { toast("Couldn’t share on this device"); }
+}
+function toast(msg) { const t = Object.assign(document.createElement("div"), { textContent: msg, role: "status" }); Object.assign(t.style, { position: "fixed", left: "50%", bottom: "calc(96px + env(safe-area-inset-bottom,0px))", transform: "translateX(-50%)", background: "#EEF1F8", color: "#090D1A", padding: "10px 16px", borderRadius: "999px", fontWeight: "700", zIndex: 60, fontSize: "14px" }); document.body.append(t); setTimeout(() => t.remove(), 1800); }
 function injuryBlock(g) {
   const inj = g.injuries; if (!inj || !(inj.home?.length || inj.away?.length)) return "";
   const col = (side) => `<div><b>${esc(g[side].short || g[side].abbr)}</b>${(inj[side] || []).slice(0, 6).map((p) => `<p><span>${esc(p.name)}${p.pos ? ` <small style="color:var(--dim)">${esc(p.pos)}</small>` : ""}</span><span>${esc(p.status === "DAY_TO_DAY" ? "DTD" : p.status.slice(0, 5))}</span></p>`).join("") || `<p style="color:var(--dim)">None reported</p>`}</div>`;
@@ -515,7 +623,7 @@ function openGame(id) {
         <div class="t">${mark(g.home, g.sport, true)}<b>${esc(g.home.short || g.home.name)}</b><small>${esc(g.home.record || "home")}</small></div></div>
     </div>
     <div class="sheet-body">
-    ${pk ? `<div class="callout"><span class="tier t-${pk.tier}">${pk.tier}</span> <b>${esc(pk.label)}</b> <span class="num">${am(pk.price)}</span><br><span style="color:#C9D1E4">EdgeBot ${pct1(pk.p)} vs ${pct1(pk.pMkt)} priced in · fair ${am(pk.fair)} · EV ${sgn(pk.ev * 100)}%</span>${pk.note ? `<br><small style="color:var(--muted)">${esc(pk.note)}</small>` : ""}</div>` : ""}
+    ${pk ? `<div class="callout"><span class="tier t-${pk.tier}">${pk.tier}</span> <b>${esc(pk.label)}</b> <span class="num">${am(pk.price)}</span><br><span style="color:#C9D1E4">EdgeBot ${pct1(pk.p)} vs ${pct1(pk.pMkt)} priced in · fair ${am(pk.fair)} · EV ${sgn(pk.ev * 100)}% · stake ${(pk.stake ?? 0.25)}u (¼ Kelly)</span>${pk.note ? `<br><small style="color:var(--muted)">${esc(pk.note)}</small>` : ""}</div>` : ""}
     ${p && !fin ? `<div class="probbar">${winBar(g, s ? s.away : p.pAway, s ? s.home : p.pHome, s ? s.draw : p.pDraw)}<div class="lbl"><span><i style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${ca};margin-right:6px"></i>${esc(g.away.abbr)} ${pct1(s ? s.away : p.pAway)}</span>${(s ? s.draw : p.pDraw) > 0.01 ? `<span>Draw ${pct1(s ? s.draw : p.pDraw)}</span>` : ""}<span>${pct1(s ? s.home : p.pHome)} ${esc(g.home.abbr)}<i style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${ch};margin-left:6px"></i></span></div></div>
       <div class="tiles">
         ${g.spread != null && s ? `<div class="tile"><span>${esc(g.home.abbr)} ${g.spread > 0 ? "+" : ""}${g.spread} covers</span><b>${pct1(s.cover / (1 - s.push))}</b><small>${s.push > 0.005 ? `push ${pct1(s.push)}` : "spread"}</small></div>` : ""}
@@ -525,6 +633,8 @@ function openGame(id) {
       </div>
       ${marginChart(g, p)}` : fin ? "" : `<p class="note">No line or ratings yet, so EdgeBot isn’t projecting this one.</p>`}
     ${contextChips(g).length ? `<div class="ctx">${contextChips(g).map((x) => `<span>${esc(x)}</span>`).join("")}</div>` : ""}
+    <div class="actions">${g.pick ? `<button class="btn ${state.saved.includes(`${g.id}~${g.pick.market}~${g.pick.side}`) ? "" : "primary"}" data-save="${esc(`${g.id}~${g.pick.market}~${g.pick.side}`)}" data-keep="1">${state.saved.includes(`${g.id}~${g.pick.market}~${g.pick.side}`) ? "★ Saved" : "☆ Save pick"}</button>` : ""}<button class="btn" data-share="${esc(g.id)}">↗ Share</button></div>
+    ${lineChart(g)}
     <h2 class="sec"><span>Why</span></h2><ul class="why">${(g.why || []).filter((x) => !/injuries:/.test(x)).map((x) => `<li>${esc(x)}</li>`).join("")}</ul>
     ${injuryBlock(g)}
     ${p && !fin ? `<h2 class="sec"><span>Check your own line</span></h2>
@@ -573,7 +683,10 @@ document.addEventListener("click", (e) => {
   if (t.dataset.sport || t.dataset.sport2) { state.sport = t.dataset.sport || t.dataset.sport2; render(); return; }
   if (t.dataset.day) { state.day = t.dataset.day; render(); return; }
   if (t.dataset.when) { state.when = t.dataset.when; render(); return; }
-  if (t.dataset.save) { const id = t.dataset.save; state.saved = state.saved.includes(id) ? state.saved.filter((x) => x !== id) : [...state.saved, id]; saveSaved(); render(); return; }
+  if (t.dataset.save) { const id = t.dataset.save; state.saved = state.saved.includes(id) ? state.saved.filter((x) => x !== id) : [...state.saved, id]; saveSaved(); render();
+    if (t.dataset.keep) { const on = state.saved.includes(id); t.textContent = on ? "★ Saved" : "☆ Save pick"; t.classList.toggle("primary", !on); toast(on ? "Saved — find it under ★ Saved" : "Removed from saved"); } return; }
+  if (t.dataset.share) { const g = games().find((x) => x.id === t.dataset.share); if (g) sharePick(g); return; }
+  if (t.dataset.tipclose) { try { localStorage.setItem("edgebot-tip", "1"); } catch {} t.closest(".tip")?.remove(); return; }
   if (t.dataset.game) { openGame(t.dataset.game); return; }
   if (t.dataset.close && (e.target === t || t.classList.contains("close"))) closeSheet();
 });

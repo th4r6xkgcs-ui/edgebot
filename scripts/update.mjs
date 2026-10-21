@@ -176,6 +176,21 @@ async function main() {
   }
   for (const [id, L] of Object.entries(lines)) if (Date.parse(L.start) < NOW - 30 * 864e5) delete lines[id];
   writeJson("state/lines.json", lines);
+  // line history: every distinct pregame line EdgeBot has seen (opening → now), for movement and charts
+  const lineHist = readJson("state/linehist.json", {});
+  for (const g of games.values()) {
+    if (g.status !== "pre" || (g.spread == null && g.mlHome == null && g.total == null)) continue;
+    const H = (lineHist[g.id] ||= { start: g.start, pts: [] }), last = H.pts[H.pts.length - 1], pt = { t: now.toISOString(), sp: g.spread, tot: g.total, mh: g.mlHome, ma: g.mlAway };
+    if (!last || last.sp !== pt.sp || last.tot !== pt.tot || last.mh !== pt.mh || last.ma !== pt.ma) H.pts.push(pt);
+    if (H.pts.length > 40) H.pts.splice(1, H.pts.length - 40);
+  }
+  for (const [id, H] of Object.entries(lineHist)) if (Date.parse(H.start) < NOW - 3 * 864e5) delete lineHist[id];
+  writeJson("state/linehist.json", lineHist);
+  for (const g of games.values()) if (lineHist[g.id] && g.status !== "post") g.lineHist = lineHist[g.id].pts;
+  // team directory (logo, colours, names) so every screen can show proper marks
+  const teams = readJson("state/teams.json", {});
+  for (const g of games.values()) for (const t of [g.home, g.away]) if (t.logo || t.color) teams[`${g.sport}|${t.abbr}`] = { name: t.name, short: t.short, logo: t.logo, color: t.color, alt: t.alt, record: t.record ?? teams[`${g.sport}|${t.abbr}`]?.record ?? null };
+  writeJson("state/teams.json", teams);
   // add this run's verified finals (with their stored closing lines) to the archive
   let newFinals = 0;
   const archIdx = Object.fromEntries(Object.entries(archive).map(([sp, A]) => [sp, new Map(A.map((x, i) => [x.id, i]))]));
@@ -217,6 +232,8 @@ async function main() {
   const ratings = {};
   for (const sp of Object.keys(E.SPORTS)) if (archive[sp].length) ratings[sp] = E.buildRatings(sp, archive[sp], SEASON_START[sp], now.toISOString());
   const model = readJson("state/model.json", {}), ledger = readJson("ledger.json", []);
+  model.clvLanes = {};
+  for (const r of ledger) if (r.clv && r.status !== "void") { const k = `${r.sport}|${r.market}`, c = (model.clvLanes[k] ||= { n: 0, beat: 0 }); c.n++; if ((r.clv.pts ?? 0) > 0 || (r.clv.prob ?? 0) > 0.002) c.beat++; }
   const out = E.runCycle({ now: now.toISOString(), games: [...games.values()], ratings, model, openLedger: ledger.filter((r) => r.status === "open"), ledgerIds: ledger.map((r) => r.id) });
   const byId = new Map(ledger.map((r) => [r.id, r]));
   for (const gr of out.graded) Object.assign(byId.get(gr.id), { status: "graded", result: gr.result, final: gr.final, gradedAt: gr.gradedAt, units: gr.units });
@@ -258,7 +275,11 @@ async function main() {
   for (const [sp, A] of Object.entries(archive)) if (A.length) writeJson(`state/archive/${sp}.json`, A.filter((x) => Date.parse(x.d) > NOW - 800 * 864e5));
   writeJson("state/history.json", history); writeJson("debug/odds-samples.json", oddsSamples);
   writeJson("state/model.json", out.model); writeJson("state/fetched.json", fetched); writeJson("ledger.json", ledger); writeJson("runs.json", runs);
-  writeJson("app.json", { at: now.toISOString(), slate: { at: now.toISOString(), games: out.slate }, model: out.model,
+  out.model.power = Object.fromEntries(Object.entries(ratings).map(([sp, R]) => [sp, Object.entries(R.teams).filter(([, t]) => t.n >= 3)
+    .map(([abbr, t]) => ({ abbr, r: +t.r.toFixed(2), o: +t.o.toFixed(2), d: +t.d.toFixed(2), n: t.n })).sort((a, b) => b.r - a.r).slice(0, sp === "NCAAF" ? 60 : 40)]));
+  const teamsOut = {}; for (const sp of Object.keys(out.model.power)) for (const t of out.model.power[sp]) if (teams[`${sp}|${t.abbr}`]) teamsOut[`${sp}|${t.abbr}`] = teams[`${sp}|${t.abbr}`];
+  for (const r of ledger.slice(-800)) for (const a of [r.home, r.away]) if (a && teams[`${r.sport}|${a}`]) teamsOut[`${r.sport}|${a}`] = teams[`${r.sport}|${a}`];
+  writeJson("app.json", { at: now.toISOString(), teams: teamsOut, slate: { at: now.toISOString(), games: out.slate }, model: out.model,
     ledger: [...ledger].sort((a, b) => (b.savedAt || "").localeCompare(a.savedAt || "")).slice(0, 800), runs: runs.slice(0, 15) });
   console.log(log.join("\n")); if (failures.length) console.log("Failures:\n" + failures.slice(0, 10).join("\n"));
   if (requests && failed === requests) process.exit(1); // every request failed: mark the run red

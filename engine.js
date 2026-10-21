@@ -12,7 +12,7 @@
     MLB:   { label: "MLB", path: "baseball/mlb", spreadNeedsPrice: true, sdM: 4.3, sdT: 4.4, hfa: 0.2, k: 0.04, kt: 0.03, avgT: 8.8, dist: "negbin", draw: false, ot: true },
     EPL:   { label: "Premier League", path: "soccer/eng.1", sdM: 1.7, sdT: 1.6, hfa: 0.3, k: 0.06, kt: 0.03, avgT: 2.9, dist: "poisson", draw: true, ot: false },
   };
-  const MODEL_VERSION = "edgebot-v2.3";
+  const MODEL_VERSION = "edgebot-v2.4";
   const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
   function erf(x) { const s = Math.sign(x); x = Math.abs(x); const t = 1 / (1 + 0.3275911 * x);
     const y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x); return s * y; }
@@ -149,7 +149,9 @@
       if (price == null && market === "spread" && S.spreadNeedsPrice) return; // puck/run lines are rarely -110: no price, no pick
       const lane = lanes[`${g.sport}|${market}`], p = laneAdjust(pRaw, lane), dec = toDec(price ?? -110);
       const edge = p - pMkt, ev = p * dec - 1;
-      out.push({ market, side, label, line, price: price ?? -110, p, pRaw, pMkt, edge, ev, fair: toAm(p), lane: laneState(lane) });
+      // Suggested stake: quarter-Kelly, where 1 unit = 1% of bankroll; capped at 2u and rounded to 0.25u
+      const kelly = ev > 0 ? ev / (dec - 1) : 0, stake = Math.min(2, Math.round((kelly * 100 / 4) * 4) / 4);
+      out.push({ market, side, label, line, price: price ?? -110, p, pRaw, pMkt, edge, ev, fair: toAm(p), lane: laneState(lane), stake: Math.max(0.25, stake) });
     };
     if (g.mlHome != null && g.mlAway != null) {
       const imp = [g.mlHome, g.mlAway, ...(S.draw && g.mlDraw != null ? [g.mlDraw] : [])].map((m) => 1 / toDec(m)), nv = noVig(imp);
@@ -191,10 +193,13 @@
   }
   /** Players listed Out/Doubtful with a fresh report. EdgeBot's ratings can't see absences the market already priced. */
   const outCount = (inj) => (inj || []).filter((p) => p.status === "OUT" || p.status === "DOUBTFUL").length;
-  function bestPick(g, pred, lanes) {
+  function bestPick(g, pred, lanes, clvLanes = {}) {
     if (!pred) return null;
     const cs = candidates(g, pred, lanes).map((c) => {
       let tier = tierOf(c), note = null;
+      // Closing-line check: a lane whose picks keep losing to the close is capped at Lean, long before W/L would show it
+      const cl = clvLanes[`${g.sport}|${c.market}`];
+      if (tier && tier !== "Lean" && cl && cl.n >= 25 && cl.beat / cl.n < 0.45) { tier = "Lean"; note = `Capped at Lean: only ${Math.round(100 * cl.beat / cl.n)}% of recent ${g.sport} ${c.market} picks beat the closing line.`; }
       const team = c.side === "home" ? "home" : c.side === "away" ? "away" : null;
       if (tier && team && g.injuries && outCount(g.injuries[team]) >= 2 && tier !== "Lean") { tier = "Lean"; note = `Capped at Lean: ${outCount(g.injuries[team])} ${g[team].abbr} players listed out/doubtful — ratings may overrate them.`; }
       return { ...c, tier, note };
@@ -280,13 +285,13 @@
     const pickedGames = new Set([...existing].map((id) => id.split("~")[0])); // one tracked pick per game: the first one saved stands
     for (const g of games) {
       const start = Date.parse(g.start); if (start < now - 36 * 3600e3) continue;
-      const R = ratings[g.sport], pred = R ? predict(g, R) : null, pick = g.status === "pre" && pred ? bestPick(g, pred, model.lanes) : null;
+      const R = ratings[g.sport], pred = R ? predict(g, R) : null, pick = g.status === "pre" && pred ? bestPick(g, pred, model.lanes, model.clvLanes || {}) : null;
       slate.push({ ...g, pred: pred && { margin: pred.margin, total: pred.total, pHome: pred.pHome, pAway: pred.pAway, pDraw: pred.pDraw, wr: pred.wr, ratingM: pred.ratingM, ratingT: pred.ratingT, marketM: pred.marketM, marketT: pred.marketT, evidence: pred.evidence, nH: pred.homeRating.n, nA: pred.awayRating.n },
         pick, why: pred ? why(g, pred, pick) : ["No line or ratings yet for this game."] });
       if (pick && start > now) {
         const id = `${g.id}~${pick.market}~${pick.side}`;
         if (!existing.has(id) && !pickedGames.has(g.id)) newPicks.push({ id, gameId: g.id, sport: g.sport, start: g.start, matchup: `${g.away.abbr} @ ${g.home.abbr}`, home: g.home.abbr, away: g.away.abbr,
-          market: pick.market, side: pick.side, label: pick.label, line: pick.line, price: pick.price, p: pick.p, pRaw: pick.pRaw, pMkt: pick.pMkt, edge: pick.edge, ev: pick.ev, tier: pick.tier,
+          market: pick.market, side: pick.side, label: pick.label, line: pick.line, price: pick.price, p: pick.p, pRaw: pick.pRaw, pMkt: pick.pMkt, edge: pick.edge, ev: pick.ev, tier: pick.tier, stake: pick.stake,
           savedAt: input.now, model: MODEL_VERSION, status: "open" });
       }
     }
