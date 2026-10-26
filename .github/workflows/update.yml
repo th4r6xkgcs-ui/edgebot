@@ -41,7 +41,13 @@ jobs:
           fi
       - name: Load saved state (data branch)
         run: |
-          git fetch --depth 1 origin data && git --work-tree=data checkout origin/data -- . || { mkdir -p data; echo "No data branch yet — starting fresh."; }
+          mkdir -p data
+          if git ls-remote --exit-code --heads origin data > /dev/null; then
+            # saved state exists: it MUST load, or the run stops (never silently start over)
+            git fetch --depth 1 origin data && git --work-tree=data checkout origin/data -- . || { echo "::error::Saved state exists but could not be loaded — stopping so nothing is overwritten."; exit 1; }
+            [ -s data/state/model.json ] && [ -d data/state/archive ] || { echo "::error::Saved state looks incomplete — stopping so nothing is overwritten."; exit 1; }
+            echo "::notice::Loaded saved state: $(ls data/state/archive | wc -l) archives, $(stat -c %s data/state/players/NBA.json 2>/dev/null || echo 0) bytes of NBA box scores"
+          else echo "No data branch yet — starting fresh."; fi
       - name: Update loop (fetch, learn, pick, grade, save — every 20 minutes)
         env:
           WHOP_API_KEY: ${{ secrets.WHOP_API_KEY }}
