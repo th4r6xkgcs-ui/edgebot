@@ -79,4 +79,5 @@ jobs:
         if: always()
         env:
           GH_TOKEN: ${{ github.token }}
-        run: git fetch -q --depth 1 origin main && git cat-file -e origin/main:PAUSE 2>/dev/null && echo "paused: not queuing" || gh api -X POST repos/${{ github.repository }}/actions/workflows/update.yml/dispatches -f ref=main || echo "::warning::could not queue next run; the backup schedule will restart it"
+        run: |
+          git fetch -q --depth 1 origin main && git cat-file -e origin/main:PAUSE 2>/dev/null && echo "paused - not queuing" || gh api -X POST repos/${{ github.repository }}/actions/workflows/update.yml/dispatches -f ref=main || echo "::warning::could not queue next run; the backup schedule will restart it"
