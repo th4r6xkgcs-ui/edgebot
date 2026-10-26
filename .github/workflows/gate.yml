@@ -56,6 +56,8 @@ jobs:
           echo "::notice::Premium gate live at $url"
           sleep 5
           echo "::notice::Gate health: $(curl -s -m 15 "$url/" | head -c 120)"
+          echo "::notice::Gate data health (from the app's origin): $(curl -s -m 20 -H 'Origin: https://edgebot-612.pages.dev' "$url/health" | head -c 220)"
+          echo "::notice::Owner-token preflight: $(curl -s -o /dev/null -w '%{http_code}' -X OPTIONS -H 'Origin: https://edgebot-612.pages.dev' -H 'Access-Control-Request-Headers: x-owner-token' "$url/premium") · wrong owner token → HTTP $(curl -s -o /dev/null -w '%{http_code}' -H 'X-Owner-Token: wrong' "$url/premium") (401 expected)"
           echo "::notice::Gate without sign-in returns HTTP $(curl -s -o /dev/null -w '%{http_code}' -m 15 "$url/premium") (401 expected)"
           code=$(printf 'Authorization: Bearer %s\n' "$WHOP_API_KEY" | curl -s -o whop.json -w '%{http_code}' -m 15 -H @- "https://api.whop.com/api/v1/accounts/me")
           biz=$(grep -oE '"biz_[A-Za-z0-9]+"' whop.json | head -1); rm -f whop.json
