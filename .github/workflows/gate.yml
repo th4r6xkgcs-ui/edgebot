@@ -31,7 +31,8 @@ jobs:
         id: chk
         run: |
           # tolerate a pasted "WHOP_API_KEY=..." line, quotes or spaces around the key
-          clean=$(printf %s "$WHOP_API_KEY" | sed -E 's/^[[:space:]]*(export[[:space:]]+)?WHOP_API_KEY[[:space:]]*[=:][[:space:]]*//; s/^["'"'"']//; s/["'"'"'][[:space:]]*$//; s/[[:space:]]+$//')
+          clean=$(printf %s "$WHOP_API_KEY" | grep -oE 'apik_[A-Za-z0-9_-]+' | head -1); [ -n "$clean" ] || clean=$(printf %s "$WHOP_API_KEY" | head -1 | sed -E 's/^[[:space:]]*(export[[:space:]]+)?WHOP_API_KEY[[:space:]]*[=:][[:space:]]*//; s/^["'"'"']//; s/["'"'"'][[:space:]]*$//; s/[[:space:]]+$//')
+          echo "::notice::Whop secret has $(printf %s "$WHOP_API_KEY" | grep -c '') line(s); using the apik_ key from it"
           echo "::add-mask::$clean"; echo "CLEAN_WHOP=$clean" >> "$GITHUB_ENV"; WHOP_API_KEY=$clean
           # report presence only (never values)
           [ -n "$CLOUDFLARE_API_TOKEN" ] && echo "::notice::Cloudflare token secret: found (named $CF_NAME)" || echo "::warning::CLOUDFLARE_API_TOKEN secret: missing${V_CF:+ (it was added as a Variable, not a Secret)}"
