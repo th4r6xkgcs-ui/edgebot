@@ -1,0 +1,69 @@
+name: Deploy premium gate
+# Deploys worker/gate.js to Cloudflare once the owner has added the repo secrets CLOUDFLARE_API_TOKEN,
+# CLOUDFLARE_ACCOUNT_ID and WHOP_API_KEY. Secrets go to Cloudflare through stdin and are never printed.
+on:
+  push:
+    branches: [main]
+    paths: ["core/**", ".github/workflows/gate.yml"]
+  workflow_dispatch: {}
+permissions:
+  contents: write
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN || secrets.CLOUDFARE_API_TOKEN || secrets.CLOUDFLARE_TOKEN || secrets.CF_API_TOKEN || secrets.CLOUDFLARE_API_KEY || secrets.CF_TOKEN || secrets.CLOUDFLARE || secrets.CLOUDFLARE_API }}
+      CF_NAME: ${{ secrets.CLOUDFLARE_API_TOKEN && 'CLOUDFLARE_API_TOKEN' || secrets.CLOUDFARE_API_TOKEN && 'CLOUDFARE_API_TOKEN' || secrets.CLOUDFLARE_TOKEN && 'CLOUDFLARE_TOKEN' || secrets.CF_API_TOKEN && 'CF_API_TOKEN' || secrets.CLOUDFLARE_API_KEY && 'CLOUDFLARE_API_KEY' || secrets.CF_TOKEN && 'CF_TOKEN' || secrets.CLOUDFLARE && 'CLOUDFLARE' || secrets.CLOUDFLARE_API && 'CLOUDFLARE_API' || '' }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      WHOP_API_KEY: ${{ secrets.WHOP_API_KEY }}
+      V_CF: ${{ vars.CLOUDFLARE_API_TOKEN != '' && 'yes' || '' }}
+      V_WHOP: ${{ vars.WHOP_API_KEY != '' && 'yes' || '' }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Unlock EdgeBot's code
+        env:
+          CORE_KEY: ${{ secrets.CORE_KEY }}
+        run: bash core/unseal.sh
+      - name: Check secrets
+        id: chk
+        run: |
+          # tolerate a pasted "WHOP_API_KEY=..." line, quotes or spaces around the key
+          clean=$(printf %s "$WHOP_API_KEY" | sed -E 's/^[[:space:]]*(export[[:space:]]+)?WHOP_API_KEY[[:space:]]*[=:][[:space:]]*//; s/^["'"'"']//; s/["'"'"'][[:space:]]*$//; s/[[:space:]]+$//')
+          echo "::add-mask::$clean"; echo "WHOP_API_KEY=$clean" >> "$GITHUB_ENV"; WHOP_API_KEY=$clean
+          # report presence only (never values)
+          [ -n "$CLOUDFLARE_API_TOKEN" ] && echo "::notice::Cloudflare token secret: found (named $CF_NAME)" || echo "::warning::CLOUDFLARE_API_TOKEN secret: missing${V_CF:+ (it was added as a Variable, not a Secret)}"
+          [ -n "$WHOP_API_KEY" ] && echo "::notice::WHOP_API_KEY secret: found" || echo "::warning::WHOP_API_KEY secret: missing${V_WHOP:+ (it was added as a Variable, not a Secret)}"
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$WHOP_API_KEY" ]; then
+            echo "::notice::Premium gate not deployed yet: add CLOUDFLARE_API_TOKEN and WHOP_API_KEY as repository secrets."
+            echo "ready=no" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          if [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then # look it up from the token (works when the token covers one account)
+            id=$(printf 'Authorization: Bearer %s\n' "$CLOUDFLARE_API_TOKEN" | curl -s -H @- "https://api.cloudflare.com/client/v4/accounts?per_page=5" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const r=JSON.parse(s).result||[];process.stdout.write(r.length?r[0].id:"")}catch{}})')
+            if [ -z "$id" ]; then echo "::error::Couldn't find the Cloudflare account from the token. Add CLOUDFLARE_ACCOUNT_ID as a secret."; exit 1; fi
+            echo "CLOUDFLARE_ACCOUNT_ID=$id" >> "$GITHUB_ENV"
+          fi
+          echo "ready=yes" >> "$GITHUB_OUTPUT"
+      - name: Deploy worker
+        if: steps.chk.outputs.ready == 'yes'
+        run: |
+          npx --yes wrangler@4 deploy worker/gate.js --name edgebot-gate --compatibility-date 2026-10-01 > deploy.log 2>&1 || { tail -20 deploy.log | sed 's/^/::error::/'; exit 1; }
+          printf %s "$WHOP_API_KEY" | npx --yes wrangler@4 secret put WHOP_API_KEY --name edgebot-gate > secret.log 2>&1 || { tail -5 secret.log | sed 's/^/::error::/'; exit 1; }
+          url=$(grep -oE 'https://edgebot-gate\.[a-z0-9-]+\.workers\.dev' deploy.log | head -1)
+          if [ -z "$url" ]; then echo "::error::Deployed, but no workers.dev URL found. In Cloudflare, open Workers & Pages once to pick a workers.dev subdomain, then re-run."; exit 1; fi
+          echo "::notice::Premium gate live at $url"
+          sleep 5
+          echo "::notice::Gate health: $(curl -s -m 15 "$url/" | head -c 120)"
+          echo "::notice::Gate without sign-in returns HTTP $(curl -s -o /dev/null -w '%{http_code}' -m 15 "$url/premium") (401 expected)"
+          code=$(printf 'Authorization: Bearer %s\n' "$WHOP_API_KEY" | curl -s -o whop.json -w '%{http_code}' -m 15 -H @- "https://api.whop.com/api/v1/accounts/me")
+          biz=$(grep -oE '"biz_[A-Za-z0-9]+"' whop.json | head -1); rm -f whop.json
+          code2=$(printf 'Authorization: Bearer %s\n' "$WHOP_API_KEY" | curl -s -o acc.json -w '%{http_code}' -m 15 -H @- "https://api.whop.com/api/v1/users/user_0000000000000/access/prod_hBaaTu5axlrhL")
+          echo "::notice::Whop membership-check permission: HTTP $code2 $(head -c 160 acc.json | tr -d '\n') (403 = key lacks permission; 404/400/200 = OK)"; rm -f acc.json
+          echo "::notice::Whop API key check (accounts/me): HTTP $code ${biz:+account $biz} (200 = key works). Key looks like: ${WHOP_API_KEY:0:4}… length ${#WHOP_API_KEY}"
+          printf '{"gate":"%s"}\n' "$url" > config.json
+          if ! git diff --quiet -- config.json 2>/dev/null || [ -n "$(git status --porcelain config.json)" ]; then
+            git config user.name "edgebot-bot"; git config user.email "edgebot-bot@users.noreply.github.com"
+            git add config.json && git commit -qm "Premium gate URL" && git push
+          fi
