@@ -54,9 +54,11 @@ jobs:
           CORE_KEY: ${{ secrets.CORE_KEY }}
           PUSH_URL: https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git
         run: |
+          [ -f PAUSE ] && { echo "::notice::Updater paused (PAUSE file in repo)."; exit 0; }
           start=$(date +%s); ok=0; bad=0; n=0
           while :; do
             n=$((n+1)); t0=$(date +%s)
+            git fetch -q --depth 1 origin main && git cat-file -e origin/main:PAUSE 2>/dev/null && { echo "::notice::Paused mid-run; stopping without saving."; break; }
             # pick up code changes pushed while this loop is running
             git fetch -q --depth 1 origin main && git checkout -q origin/main -- core && bash core/unseal.sh > /dev/null || echo "::warning::cycle $n: kept the previous code (unlock failed)"
             if timeout 15m node scripts/update.mjs; then
@@ -72,9 +74,9 @@ jobs:
             wait=$(( INTERVAL_MIN * 60 - (now - t0) )); [ $wait -gt 0 ] && sleep $wait
           done
           echo "::notice::EdgeBot loop finished: $ok cycles ok, $bad failed"
-          [ $ok -gt 0 ]
+          [ $ok -gt 0 ] || [ -f PAUSE ] || git cat-file -e origin/main:PAUSE 2>/dev/null
       - name: Queue the next run
         if: always()
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh api -X POST repos/${{ github.repository }}/actions/workflows/update.yml/dispatches -f ref=main || echo "::warning::could not queue next run; the backup schedule will restart it"
+        run: git fetch -q --depth 1 origin main && git cat-file -e origin/main:PAUSE 2>/dev/null && echo "paused: not queuing" || gh api -X POST repos/${{ github.repository }}/actions/workflows/update.yml/dispatches -f ref=main || echo "::warning::could not queue next run; the backup schedule will restart it"
