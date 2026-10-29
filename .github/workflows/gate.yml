@@ -62,7 +62,6 @@ jobs:
           echo "::notice::Premium gate live at $url"
           sleep 5
           echo "::notice::Gate health: $(curl -s -m 15 "$url/" | head -c 120)"
-          for ep in "products?first=20" "plans?first=20" "companies"; do pc=$(printf 'Authorization: Bearer %s\n' "$CLEAN_WHOP" | curl -s -o prod.json -w '%{http_code}' -m 15 -H @- "https://api.whop.com/api/v1/$ep"); echo "::notice::Whop $ep → HTTP $pc: $(grep -oE '"(id|title|name|route|product_id|company_id)":"[^"]*"' prod.json | head -24 | tr '\n' ' ')"; done; rm -f prod.json
           tk=$(curl -s -m 15 -X POST -H 'Content-Type: application/json' -H 'Origin: https://edgebot-612.pages.dev' -d '{"grant_type":"authorization_code","code":"edgebot-selftest","client_id":"app_j8biqb1wkqFnCR","redirect_uri":"https://edgebot-612.pages.dev/","code_verifier":"x"}' "$url/token" | head -c 200)
           echo "::notice::Sign-in self-test (a fake code should be refused as an invalid code/grant, NOT as a bad client or missing secret): $tk"
           echo "::notice::Gate data health (from the app's origin): $(curl -s -m 20 -H 'Origin: https://edgebot-612.pages.dev' "$url/health" | head -c 220)"
