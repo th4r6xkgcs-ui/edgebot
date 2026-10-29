@@ -54,6 +54,7 @@ jobs:
           npx --yes wrangler@4 deploy worker/gate.js --name edgebot-gate --compatibility-date 2026-10-01 > deploy.log 2>&1 || { tail -20 deploy.log | sed 's/^/::error::/'; exit 1; }
           printf %s "$CLEAN_WHOP" | npx --yes wrangler@4 secret put WHOP_API_KEY --name edgebot-gate > secret.log 2>&1 || { tail -5 secret.log | sed 's/^/::error::/'; exit 1; }
           cs=$(printf %s "$WHOP_CLIENT_SECRET" | tr -d '[:space:]' | sed -E 's/^WHOP_CLIENT_SECRET=//')
+          [ -n "$cs" ] && { [ "$cs" = "$CLEAN_WHOP" ] && echo "::warning::WHOP_CLIENT_SECRET is the SAME as the Whop API key — paste the OAuth Client secret instead." ; case "$cs" in apik_*) echo "::warning::WHOP_CLIENT_SECRET starts with apik_ (that's an API key, not the OAuth client secret).";; esac; }
           if [ -n "$cs" ]; then printf %s "$cs" | npx --yes wrangler@4 secret put WHOP_CLIENT_SECRET --name edgebot-gate > secret2.log 2>&1 && echo "::notice::WHOP_CLIENT_SECRET: set on the gate (length ${#cs})" || { tail -5 secret2.log | sed 's/^/::error::/'; exit 1; }
           else echo "::warning::WHOP_CLIENT_SECRET secret missing: Whop sign-in can't finish until it's added."; fi
           url=$(grep -oE 'https://edgebot-gate\.[a-z0-9-]+\.workers\.dev' deploy.log | head -1)
