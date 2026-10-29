@@ -48,7 +48,7 @@ jobs:
             [ -s data/state/model.json ] && [ -d data/state/archive ] || { echo "::error::Saved state looks incomplete — stopping so nothing is overwritten."; exit 1; }
             echo "::notice::Loaded saved state: $(ls data/state/archive | wc -l) archives, $(stat -c %s data/state/players/NBA.json 2>/dev/null || echo 0) bytes of NBA box scores"
           else echo "No data branch yet — starting fresh."; fi
-      - name: Update loop (fetch, learn, pick, grade, save — every 20 minutes)
+      - name: Update loop (fetch, learn, pick, grade, save — every 10-20 minutes)
         env:
           WHOP_API_KEY: ${{ secrets.WHOP_API_KEY }}
           CORE_KEY: ${{ secrets.CORE_KEY }}
@@ -70,8 +70,10 @@ jobs:
               bad=$((bad+1)); echo "::warning::cycle $n FAILED (see log); state from this cycle was not saved"
             fi
             now=$(date +%s)
-            [ $(( now - start + INTERVAL_MIN * 60 )) -gt $(( LOOP_MIN * 60 )) ] && break
-            wait=$(( INTERVAL_MIN * 60 - (now - t0) )); [ $wait -gt 0 ] && sleep $wait
+            # 10 minutes when a game starts soon, otherwise 20 (the updater decides each cycle)
+            iv=$(node -e "try{const m=require('./data/state/next_interval.json').min;console.log(m>=5&&m<=30?m:$INTERVAL_MIN)}catch{console.log($INTERVAL_MIN)}" 2>/dev/null || echo $INTERVAL_MIN)
+            [ $(( now - start + iv * 60 )) -gt $(( LOOP_MIN * 60 )) ] && break
+            wait=$(( iv * 60 - (now - t0) )); [ $wait -gt 0 ] && sleep $wait
           done
           echo "::notice::EdgeBot loop finished: $ok cycles ok, $bad failed"
           [ $ok -gt 0 ] || [ -f PAUSE ] || git cat-file -e origin/main:PAUSE 2>/dev/null
