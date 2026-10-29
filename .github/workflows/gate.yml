@@ -69,7 +69,7 @@ jobs:
           echo "::notice::Gate without sign-in returns HTTP $(curl -s -o /dev/null -w '%{http_code}' -m 15 "$url/premium") (401 expected)"
           code=$(printf 'Authorization: Bearer %s\n' "$CLEAN_WHOP" | curl -s -o whop.json -w '%{http_code}' -m 15 -H @- "https://api.whop.com/api/v1/accounts/me")
           biz=$(grep -oE '"biz_[A-Za-z0-9]+"' whop.json | head -1); rm -f whop.json
-          code2=$(printf 'Authorization: Bearer %s\n' "$CLEAN_WHOP" | curl -s -o acc.json -w '%{http_code}' -m 15 -H @- "https://api.whop.com/api/v1/users/user_0000000000000/access/prod_hBaaTu5axlrhL")
+          code2=$(printf 'Authorization: Bearer %s\n' "$CLEAN_WHOP" | curl -s -o acc.json -w '%{http_code}' -m 15 -H @- "https://api.whop.com/api/v1/users/user_0000000000000/access/prod_uShPEUv6jPHbc")
           echo "::notice::Whop membership-check permission: HTTP $code2 $(head -c 160 acc.json | tr -d '\n') (403 = key lacks permission; 404/400/200 = OK)"; rm -f acc.json
           echo "::notice::Whop API key check (accounts/me): HTTP $code ${biz:+account $biz} (200 = key works). Key looks like: ${CLEAN_WHOP:0:4}… length ${#CLEAN_WHOP}"
           printf '{"gate":"%s"}\n' "$url" > config.json
