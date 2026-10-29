@@ -16,6 +16,7 @@ jobs:
       CF_NAME: ${{ secrets.CLOUDFLARE_API_TOKEN && 'CLOUDFLARE_API_TOKEN' || secrets.CLOUDFARE_API_TOKEN && 'CLOUDFARE_API_TOKEN' || secrets.CLOUDFLARE_TOKEN && 'CLOUDFLARE_TOKEN' || secrets.CF_API_TOKEN && 'CF_API_TOKEN' || secrets.CLOUDFLARE_API_KEY && 'CLOUDFLARE_API_KEY' || secrets.CF_TOKEN && 'CF_TOKEN' || secrets.CLOUDFLARE && 'CLOUDFLARE' || secrets.CLOUDFLARE_API && 'CLOUDFLARE_API' || '' }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       WHOP_API_KEY: ${{ secrets.WHOP_API_KEY }}
+      WHOP_CLIENT_SECRET: ${{ secrets.WHOP_CLIENT_SECRET }}
       V_CF: ${{ vars.CLOUDFLARE_API_TOKEN != '' && 'yes' || '' }}
       V_WHOP: ${{ vars.WHOP_API_KEY != '' && 'yes' || '' }}
     steps:
@@ -52,6 +53,9 @@ jobs:
         run: |
           npx --yes wrangler@4 deploy worker/gate.js --name edgebot-gate --compatibility-date 2026-10-01 > deploy.log 2>&1 || { tail -20 deploy.log | sed 's/^/::error::/'; exit 1; }
           printf %s "$CLEAN_WHOP" | npx --yes wrangler@4 secret put WHOP_API_KEY --name edgebot-gate > secret.log 2>&1 || { tail -5 secret.log | sed 's/^/::error::/'; exit 1; }
+          cs=$(printf %s "$WHOP_CLIENT_SECRET" | tr -d '[:space:]' | sed -E 's/^WHOP_CLIENT_SECRET=//')
+          if [ -n "$cs" ]; then printf %s "$cs" | npx --yes wrangler@4 secret put WHOP_CLIENT_SECRET --name edgebot-gate > secret2.log 2>&1 && echo "::notice::WHOP_CLIENT_SECRET: set on the gate (length ${#cs})" || { tail -5 secret2.log | sed 's/^/::error::/'; exit 1; }
+          else echo "::warning::WHOP_CLIENT_SECRET secret missing: Whop sign-in can't finish until it's added."; fi
           url=$(grep -oE 'https://edgebot-gate\.[a-z0-9-]+\.workers\.dev' deploy.log | head -1)
           if [ -z "$url" ]; then echo "::error::Deployed, but no workers.dev URL found. In Cloudflare, open Workers & Pages once to pick a workers.dev subdomain, then re-run."; exit 1; fi
           echo "::notice::Premium gate live at $url"
