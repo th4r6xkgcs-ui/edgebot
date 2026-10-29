@@ -1,0 +1,31 @@
+name: probe (temporary)
+on: { workflow_dispatch: {} }
+permissions: { contents: write }
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@v5
+        with: { node-version: 22 }
+      - run: |
+          cat > p.mjs <<'JS'
+          const j = async (u) => { try { const r = await fetch(u); return r.ok ? r.json() : null; } catch { return null; } };
+          const out = {};
+          const d = new Date(Date.now() - 864e5).toISOString().slice(0, 10).replace(/-/g, "");
+          const sb = await j(`https://site.api.espn.com/apis/site/v2/sports/hockey/nhl/scoreboard?dates=${d}`);
+          const fin = sb?.events?.find((e) => e.status?.type?.completed);
+          if (fin) { const s = await j(`https://site.api.espn.com/apis/site/v2/sports/hockey/nhl/summary?event=${fin.id}`);
+            out.event = fin.id; out.groups = (s?.boxscore?.players || []).slice(0, 1).flatMap((p) => (p.statistics || []).map((g) => ({ name: g.name, keys: g.keys, labels: g.labels, sample: g.athletes?.[0] && { id: g.athletes[0].athlete?.id, n: g.athletes[0].athlete?.displayName, pos: g.athletes[0].athlete?.position?.abbreviation, stats: g.athletes[0].stats } })));
+            out.team = s?.boxscore?.players?.[0]?.team?.abbreviation; }
+          const sb2 = await j(`https://site.api.espn.com/apis/site/v2/sports/hockey/nhl/scoreboard`);
+          const up = sb2?.events?.filter((e) => e.status?.type?.state === "pre") || [];
+          out.upcoming = up.length; out.probables = up[0]?.competitions?.[0]?.competitors?.map((c) => c.probables?.map((p) => ({ n: p.athlete?.displayName, stats: p.statistics, ast: p.athlete?.statistics })) || null);
+          for (const e of up.slice(0, 3)) { const pb = await j(`https://sports.core.api.espn.com/v2/sports/hockey/leagues/nhl/events/${e.id}/competitions/${e.id}/odds/100/propBets?lang=en&region=us&limit=1000`);
+            if (pb?.items?.length) { out.propTypes = [...new Set(pb.items.map((i) => i.type?.name))]; out.propSample = pb.items.slice(0, 2); out.propEvent = e.id; break; } }
+          const nfl = await (await fetch("https://github.com/nflverse/nflverse-data/releases/download/stats_player/stats_player_week_2026.csv")).text().catch(() => "");
+          out.nflCols = nfl.split("\n")[0];
+          console.log(JSON.stringify(out).slice(0, 3000));
+          (await import("fs")).writeFileSync("probe.json", JSON.stringify(out, null, 1));
+          JS
+          node p.mjs
+          mkdir o && mv probe.json o/ && cd o && git init -q -b probe && git -c user.name=edgebot-bot -c user.email=edgebot-bot@users.noreply.github.com commit -qm probe --allow-empty && git add -A && git -c user.name=edgebot-bot -c user.email=edgebot-bot@users.noreply.github.com commit -qm probe && git push -q -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" probe:probe
